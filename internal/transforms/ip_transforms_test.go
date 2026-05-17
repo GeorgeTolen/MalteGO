@@ -305,21 +305,18 @@ func TestNoiseIPLookupGetOrg_HasOrganization(t *testing.T) {
 
 	px := runTransform(t, &NoiseIPLookupGetOrg{}, mock, makeReq("1.2.3.4"))
 
-	if len(px.Entities) != 1 {
-		t.Fatalf("expected 1 entity, got %d", len(px.Entities))
+	if len(px.Entities) != 2 {
+		t.Fatalf("expected 2 entities, got %d", len(px.Entities))
 	}
-	if px.Entities[0].Type != maltego.EntityOrganization {
-		t.Errorf("entity type = %q, want maltego.Organization", px.Entities[0].Type)
+	if px.Entities[1].Type != maltego.EntityCompany {
+		t.Errorf("entity type = %q, want maltego.Company", px.Entities[1].Type)
 	}
-	if px.Entities[0].Value != "Acme Corp" {
-		t.Errorf("entity value = %q, want Acme Corp", px.Entities[0].Value)
-	}
-	if px.Entities[0].Properties["asn"] != "AS9999" {
-		t.Errorf("asn = %q", px.Entities[0].Properties["asn"])
+	if px.Entities[1].Value != "Acme Corp" {
+		t.Errorf("entity value = %q, want Acme Corp", px.Entities[1].Value)
 	}
 }
 
-func TestNoiseIPLookupGetOrg_OrgEmpty_FallsBackToASN(t *testing.T) {
+func TestNoiseIPLookupGetOrg_OrgEmpty_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{
 		IP:       "1.2.3.4",
 		Seen:     true,
@@ -329,17 +326,22 @@ func TestNoiseIPLookupGetOrg_OrgEmpty_FallsBackToASN(t *testing.T) {
 	px := runTransform(t, &NoiseIPLookupGetOrg{}, mock, makeReq("1.2.3.4"))
 
 	if len(px.Entities) != 1 {
-		t.Fatalf("expected 1 entity for ASN fallback, got %d", len(px.Entities))
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
 	}
-	if px.Entities[0].Value != "AS777" {
-		t.Errorf("fallback value = %q, want AS777", px.Entities[0].Value)
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
 	}
 }
 
 func TestNoiseIPLookupGetOrg_NoOrgNoASN_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "1.2.3.4", Seen: true}, nil)
 	px := runTransform(t, &NoiseIPLookupGetOrg{}, mock, makeReq("1.2.3.4"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

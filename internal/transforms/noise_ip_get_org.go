@@ -2,7 +2,6 @@ package transforms
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
@@ -14,39 +13,24 @@ func (t *NoiseIPLookupGetOrg) Name() string { return "GreyNoiseNoiseIPLookupGetO
 
 func (t *NoiseIPLookupGetOrg) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	addInputEntity(resp, req, maltego.EntityIPv4Address)
 
 	r, err := client.ContextIP(ctx, req.Value)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GreyNoise context lookup failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
 	if !r.Seen {
-		resp.Inform(fmt.Sprintf("%s has not been seen by GreyNoise", req.Value))
+		resp.Inform("The IP address " + req.Value + " hasn't been seen by GreyNoise.")
 		return resp, nil
 	}
 
-	org := r.Metadata.Organization
-	if org == "" {
-		org = r.Metadata.ASN
-	}
-	if org == "" {
-		resp.Inform(fmt.Sprintf("No organization info for %s", req.Value))
+	if r.Metadata.Organization == "" {
+		resp.Inform("The IP address " + req.Value + " has no associated Organization.")
 		return resp, nil
 	}
 
-	displayHTML := fmt.Sprintf(
-		"<b>Organization:</b> %s<br/><b>ASN:</b> %s<br/><b>Country:</b> %s<br/><b>Category:</b> %s",
-		r.Metadata.Organization, r.Metadata.ASN, r.Metadata.Country, r.Metadata.Category,
-	)
-
-	resp.AddEntity(maltego.EntityOrganization, org).
-		AddDisplayInfo("GreyNoise Organization", displayHTML).
-		AddProperty("asn", "ASN", maltego.MatchingRuleLoose, r.Metadata.ASN).
-		AddProperty("country", "Country", maltego.MatchingRuleLoose, r.Metadata.Country).
-		AddProperty("category", "Category", maltego.MatchingRuleLoose, r.Metadata.Category).
-		AddProperty("source_ip", "Source IP", maltego.MatchingRuleLoose, r.IP)
-
-	resp.Inform(fmt.Sprintf("Organization for %s: %s", req.Value, org))
+	resp.AddEntity(maltego.EntityCompany, r.Metadata.Organization)
 	return resp, nil
 }
