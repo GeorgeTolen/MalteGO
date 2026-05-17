@@ -368,10 +368,10 @@ func TestNoiseIPLookupGetPorts_FromRawScan(t *testing.T) {
 
 	px := runTransform(t, &NoiseIPLookupGetPorts{}, mock, makeReq("1.2.3.4"))
 
-	if len(px.Entities) != 2 {
-		t.Fatalf("expected 2 port entities, got %d", len(px.Entities))
+	if len(px.Entities) != 3 {
+		t.Fatalf("expected input entity and 2 port entities, got %d", len(px.Entities))
 	}
-	for _, e := range px.Entities {
+	for _, e := range px.Entities[1:] {
 		if e.Type != maltego.EntityPort {
 			t.Errorf("entity type = %q, want maltego.Port", e.Type)
 		}
@@ -391,15 +391,23 @@ func TestNoiseIPLookupGetPorts_FromPortsList_WhenNoRawScan(t *testing.T) {
 
 	px := runTransform(t, &NoiseIPLookupGetPorts{}, mock, makeReq("1.2.3.4"))
 
-	if len(px.Entities) != 2 {
-		t.Fatalf("expected 2 port entities, got %d", len(px.Entities))
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected only copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
 	}
 }
 
 func TestNoiseIPLookupGetPorts_NoPorts_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "1.2.3.4", Seen: true}, nil)
 	px := runTransform(t, &NoiseIPLookupGetPorts{}, mock, makeReq("1.2.3.4"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
