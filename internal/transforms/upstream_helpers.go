@@ -2,6 +2,7 @@ package transforms
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
@@ -107,4 +108,15 @@ func contextLink(r *greynoise.ContextResponse) string {
 		return ""
 	}
 	return "https://www.greynoise.io/viz/ip/" + r.IP
+}
+
+func intSetting(req *maltego.Request, name string, fallback int) int {
+	if req.Settings == nil || req.Settings[name] == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(req.Settings[name])
+	if err != nil {
+		return fallback
+	}
+	return n
 }

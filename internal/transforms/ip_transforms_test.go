@@ -460,7 +460,7 @@ func TestNoiseIPLookupGetTags_NoTags_ReturnsInform(t *testing.T) {
 
 func simMock(r *greynoise.SimilarityResponse, err error) *greynoise.MockClient {
 	return &greynoise.MockClient{
-		SimilarIPsFn: func(_ context.Context, _ string) (*greynoise.SimilarityResponse, error) {
+		SimilarIPsFn: func(_ context.Context, _ string, _, _ int) (*greynoise.SimilarityResponse, error) {
 			return r, err
 		},
 	}
@@ -483,15 +483,15 @@ func TestNoiseIPSims_ReturnsSimilarIPs(t *testing.T) {
 
 	px := runTransform(t, &NoiseIPSims{}, mock, makeReq("1.2.3.4"))
 
-	if len(px.Entities) != 2 {
-		t.Fatalf("expected 2 similar IPs, got %d", len(px.Entities))
+	if len(px.Entities) != 3 {
+		t.Fatalf("expected input entity and 2 similar IPs, got %d", len(px.Entities))
 	}
-	if px.Entities[0].Properties["similarity_score"] == "" {
-		t.Error("similarity_score property missing")
+	if px.Entities[1].Value != "5.5.5.5" || px.Entities[2].Value != "6.6.6.6" {
+		t.Errorf("similar IP entities = %#v", px.Entities[1:])
 	}
 }
 
-func TestNoiseIPSims_RespectsHardLimit(t *testing.T) {
+func TestNoiseIPSims_UsesTransformLimitSetting(t *testing.T) {
 	similar := make([]greynoise.SimilarIP, 20)
 	for i := range similar {
 		similar[i] = greynoise.SimilarIP{IP: "1.1.1.1", Score: 0.5}
@@ -500,24 +500,37 @@ func TestNoiseIPSims_RespectsHardLimit(t *testing.T) {
 	mock := simMock(&greynoise.SimilarityResponse{IP: "1.2.3.4", Similar: similar}, nil)
 
 	req := makeReq("1.2.3.4")
-	req.HardLimit = 5
+	req.Settings["limit"] = "5"
+	mock.SimilarIPsFn = func(_ context.Context, _ string, _, limit int) (*greynoise.SimilarityResponse, error) {
+		return &greynoise.SimilarityResponse{IP: "1.2.3.4", Similar: similar[:limit]}, nil
+	}
 
 	px := runTransform(t, &NoiseIPSims{}, mock, req)
-	if len(px.Entities) != 5 {
-		t.Errorf("expected 5 entities (HardLimit), got %d", len(px.Entities))
+	if len(px.Entities) != 6 {
+		t.Errorf("expected input entity and 5 similar entities, got %d", len(px.Entities))
 	}
 }
 
 func TestNoiseIPSims_NoSimilar_ReturnsInform(t *testing.T) {
 	mock := simMock(&greynoise.SimilarityResponse{IP: "1.2.3.4", Similar: nil}, nil)
 	px := runTransform(t, &NoiseIPSims{}, mock, makeReq("1.2.3.4"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 func TestNoiseIPSims_APIError_ReturnsFatalError(t *testing.T) {
 	mock := simMock(nil, errors.New("sim api error"))
 	px := runTransform(t, &NoiseIPSims{}, mock, makeReq("1.2.3.4"))
-	assertFatalError(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

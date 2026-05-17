@@ -1,5 +1,7 @@
 package greynoise
 
+import "encoding/json"
+
 // CommunityResponse — /v3/community/{ip}
 type CommunityResponse struct {
 	IP             string `json:"ip"`
@@ -70,6 +72,34 @@ type RIOTResponse struct {
 type SimilarityResponse struct {
 	IP      string        `json:"ip"`
 	Similar []SimilarIP   `json:"similar_ips"`
+}
+
+func (r *SimilarityResponse) UnmarshalJSON(data []byte) error {
+	type alias SimilarityResponse
+	var raw struct {
+		IP json.RawMessage `json:"ip"`
+		*alias
+	}
+	raw.alias = (*alias)(r)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if len(raw.IP) == 0 {
+		return nil
+	}
+	var ipString string
+	if err := json.Unmarshal(raw.IP, &ipString); err == nil {
+		r.IP = ipString
+		return nil
+	}
+	var ipObject struct {
+		IP string `json:"ip"`
+	}
+	if err := json.Unmarshal(raw.IP, &ipObject); err != nil {
+		return err
+	}
+	r.IP = ipObject.IP
+	return nil
 }
 
 type SimilarIP struct {

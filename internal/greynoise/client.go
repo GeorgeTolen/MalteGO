@@ -20,7 +20,7 @@ type Client interface {
 	CommunityIP(ctx context.Context, ip string) (*CommunityResponse, error)
 	ContextIP(ctx context.Context, ip string) (*ContextResponse, error)
 	RIOT(ctx context.Context, ip string) (*RIOTResponse, error)
-	SimilarIPs(ctx context.Context, ip string) (*SimilarityResponse, error)
+	SimilarIPs(ctx context.Context, ip string, minScore, limit int) (*SimilarityResponse, error)
 	GNQL(ctx context.Context, query string, size int) (*GNQLResponse, error)
 }
 
@@ -100,9 +100,16 @@ func (c *httpClient) RIOT(ctx context.Context, ip string) (*RIOTResponse, error)
 	return &r, nil
 }
 
-func (c *httpClient) SimilarIPs(ctx context.Context, ip string) (*SimilarityResponse, error) {
+func (c *httpClient) SimilarIPs(ctx context.Context, ip string, minScore, limit int) (*SimilarityResponse, error) {
+	if minScore <= 0 {
+		minScore = 90
+	}
+	if limit <= 0 {
+		limit = 50
+	}
 	var r SimilarityResponse
-	if err := c.get(ctx, fmt.Sprintf("%s/v1/experimental/gnoise/similar/%s", c.baseURL, ip), &r); err != nil {
+	u := fmt.Sprintf("%s/v1/experimental/gnoise/similar/%s?min_score=%d&limit=%d", c.baseURL, ip, minScore, limit)
+	if err := c.get(ctx, u, &r); err != nil {
 		return nil, err
 	}
 	return &r, nil
