@@ -1,60 +1,110 @@
-# GreyNoise Maltego Go
+# MalteGO
 
-Go port of the GreyNoise Maltego transforms.
+Go-реализация [greynoise-maltego](https://github.com/GreyNoise-Intelligence/greynoise-maltego) — сервер трансформов для Maltego, который подтягивает данные из GreyNoise API.
 
-## Build
+Если коротко: берёшь IP в Maltego, запускаешь трансформ — и граф разворачивается в акторов, CVE, похожие адреса, организации и всё что с этим IP связано. Мы переписали оригинальный Python/Flask сервис на Go с Gin.
 
-```powershell
-go build -o maltego-server.exe ./cmd/server
+---
+
+## Что внутри
+
+**13 трансформов в 4 группах:**
+
+**Community** (бесплатно):
+- `GreyNoiseCommunityIPLookup` — базовая проверка IP: шумит ли, известный ли сервис, malicious/benign
+
+**Контекст по IP** (Enterprise):
+- `GreyNoiseNoiseIPLookupAllDetails` — полный портрет: гео, ASN, теги, CVE, порты, актор
+- `GreyNoiseNoiseIPLookupGetActor` — кто стоит за этим IP
+- `GreyNoiseNoiseIPLookupGetCVEs` — какие уязвимости эксплуатирует
+- `GreyNoiseNoiseIPLookupGetOrg` — провайдер и организация
+- `GreyNoiseNoiseIPLookupGetPorts` — что сканирует
+- `GreyNoiseNoiseIPLookupGetTags` — теги активности
+- `GreyNoiseRIOTIPLookup` — это легитимный сервис? (убирает ложные алармы)
+
+**Пивотинг** (Enterprise):
+- `GreyNoiseNoiseIPSims` — похожие IP по поведению, строит всю инфраструктуру атакующего
+
+**GNQL-запросы** (Enterprise):
+- `GreyNoiseQueryByASN` — все вредоносные IP в сети
+- `GreyNoiseQueryByActor` — все IP группировки
+- `GreyNoiseQueryByCVE` — кто прямо сейчас эксплуатирует уязвимость
+- `GreyNoiseQueryByTag` — IP по типу активности
+
+---
+
+## Стек
+
+- **Go 1.26** + **Gin**
+- Протокол **Maltego TRX** (XML request/response)
+- **Docker** + docker-compose
+- Конфигурация через `.env`
+
+---
+
+## Быстрый старт
+
+```bash
+git clone https://github.com/GeorgeTolen/MalteGO.git
+cd MalteGO
+
+cp .env.example .env
+# Вставь GREYNOISE_API_KEY в .env (бесплатный ключ: https://viz.greynoise.io/signup)
+
+make docker-run   # сборка + запуск в Docker
+# или
+make run          # локально без Docker
 ```
 
-## Maltego Import
+Сервис поднимается на `http://localhost:8080`.
 
-Import the ready-made package:
+---
 
-```text
-dist/greynoise-go.mtz
+## Проверить что работает
+
+```bash
+# Список трансформов
+curl http://localhost:8080/
+
+# Community lookup (работает без Enterprise-ключа)
+curl -X POST http://localhost:8080/run/GreyNoiseCommunityIPLookup \
+  -H "Content-Type: text/xml" \
+  -d '<MaltegoMessage><MaltegoTransformRequestMessage>
+    <Entities><Entity Type="maltego.IPv4Address">
+      <Value>8.8.8.8</Value><Weight>100</Weight>
+    </Entity></Entities>
+    <TransformFields>
+      <Field Name="greynoise.api.key">YOUR_KEY</Field>
+    </TransformFields>
+    <Limits SoftLimit="12" HardLimit="12"/>
+  </MaltegoTransformRequestMessage></MaltegoMessage>'
 ```
 
-It contains:
+---
 
-- GreyNoise custom entities from the upstream package
-- a local Maltego server entry named `GreyNoise Go Local`
-- all 13 GreyNoise transforms
-- local transform settings that run `maltego-server.exe local <TransformName>`
+## Make-команды
 
-Set your API key before running imported local transforms:
-
-```powershell
-$env:GREYNOISE_API_KEY="your_key"
+```
+make run            # запустить локально
+make docker-run     # собрать образ + запустить в Docker
+make test           # тесты
+make test-cover     # тесты с отчётом покрытия
+make build          # собрать бинарник
+make help           # все команды
 ```
 
-If your binary path changes, regenerate the MTZ:
+---
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\generate_mtz.ps1 `
-  -BinaryPath "C:\absolute\path\to\maltego-server.exe" `
-  -Root "C:\absolute\path\to\this\repo"
-```
+## API-ключ GreyNoise
 
-## HTTP Server Mode
+| Тир | Цена | Что доступно |
+|-----|------|-------------|
+| Community | Бесплатно | 1 трансформ, 50 запросов/неделю |
+| Enterprise Trial | Бесплатно 14 дней | Все 13 трансформов |
+| Enterprise | Платно | Все 13 трансформов, без лимита |
 
-```powershell
-$env:GREYNOISE_API_KEY="your_key"
-$env:PORT="8081"
-.\maltego-server.exe
-```
+Получить ключ: [viz.greynoise.io/signup](https://viz.greynoise.io/signup)
 
-Transforms are available at:
+Ключ можно передавать двумя способами — через `.env` или прямо в теле каждого запроса в `TransformFields`. Второй способ удобен при подключении из Maltego Desktop.
 
-```text
-POST /run/<TransformName>
-```
-
-## Local Mode
-
-Maltego local transforms use this internally:
-
-```powershell
-.\maltego-server.exe local GreyNoiseCommunityIPLookup 1.2.3.4
-```
+Подробная документация по всем эндпоинтам и примеры для Postman — в [API.md](API.md).
