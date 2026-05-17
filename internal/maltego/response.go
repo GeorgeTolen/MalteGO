@@ -2,7 +2,7 @@ package maltego
 
 import (
 	"encoding/xml"
-	"fmt"
+	"strings"
 )
 
 // --- Response builder ---
@@ -160,9 +160,9 @@ type xmlRespFields struct {
 }
 
 type xmlRespField struct {
-	Name         string `xml:"Name,attr"`
 	DisplayName  string `xml:"DisplayName,attr"`
 	MatchingRule string `xml:"MatchingRule,attr,omitempty"`
+	Name         string `xml:"Name,attr"`
 	Value        string `xml:",chardata"`
 }
 
@@ -208,7 +208,7 @@ func (r *Response) ToXML() ([]byte, error) {
 				di.Labels = append(di.Labels, xmlLabel{
 					Name:    l.Name,
 					Type:    l.Type,
-					Content: fmt.Sprintf("<![CDATA[%s]]>", l.Content),
+					Content: escapeDisplayContent(l.Content),
 				})
 			}
 			xe.DisplayInformation = di
@@ -253,7 +253,15 @@ func (r *Response) ToXML() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte(xml.Header), data...), nil
+	return data, nil
+}
+
+func escapeDisplayContent(s string) string {
+	return strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+	).Replace(s)
 }
 
 func ErrorResponse(msg string) ([]byte, error) {
