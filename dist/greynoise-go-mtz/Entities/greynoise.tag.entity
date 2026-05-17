@@ -1,0 +1,10 @@
+<MaltegoEntity id="greynoise.tag" displayName="GreyNoise Tag" displayNamePlural="GreyNoise Tags" description="GreyNoise Tag" category="My Entities" smallIconResource="Technology/NetworkID" largeIconResource="Technology/NetworkID" allowedRoot="true" conversionOrder="2147483647" visible="true">
+   <Properties value="properties.greynoisetag" displayValue="properties.greynoisetag">
+      <Groups/>
+      <Fields>
+         <Field name="properties.greynoisetag" type="string" nullable="true" hidden="false" readonly="false" displayName="GreyNoise Tag">
+            <SampleValue>-</SampleValue>
+         </Field>
+      </Fields>
+   </Properties>
+</MaltegoEntity>

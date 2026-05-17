@@ -1,0 +1,8 @@
+﻿<TransformSettings enabled="true" disclaimerAccepted="false" showHelp="true" runWithAll="true" favorite="false">
+   <Properties>
+      <Property name="transform.local.command" type="string" popup="false">C:\Users\m1603498\Projects\MalteGO\maltego-server.exe</Property>
+      <Property name="transform.local.parameters" type="string" popup="false">local GreyNoiseQueryByActor</Property>
+      <Property name="transform.local.working-directory" type="string" popup="false">C:\Users\m1603498\Projects\MalteGO</Property>
+      <Property name="transform.local.debug" type="boolean" popup="false"/>
+   </Properties>
+</TransformSettings>
