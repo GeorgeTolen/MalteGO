@@ -2,7 +2,6 @@ package transforms
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
@@ -14,30 +13,27 @@ func (t *NoiseIPLookupGetTags) Name() string { return "GreyNoiseNoiseIPLookupGet
 
 func (t *NoiseIPLookupGetTags) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	addInputEntity(resp, req, maltego.EntityIPv4Address)
 
 	r, err := client.ContextIP(ctx, req.Value)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GreyNoise context lookup failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
 	if !r.Seen {
-		resp.Inform(fmt.Sprintf("%s has not been seen by GreyNoise", req.Value))
+		resp.Inform("The IP address " + req.Value + " hasn't been seen by GreyNoise.")
 		return resp, nil
 	}
 
 	if len(r.Tags) == 0 {
-		resp.Inform(fmt.Sprintf("No tags found for %s", req.Value))
+		resp.Inform("The IP address " + req.Value + " has no associated Tags.")
 		return resp, nil
 	}
 
 	for _, tag := range r.Tags {
-		resp.AddEntity(maltego.EntityHashtag, tag).
-			AddDisplayInfo("GreyNoise Tag", fmt.Sprintf("<b>Tag:</b> %s<br/><b>IP:</b> %s", tag, r.IP)).
-			AddProperty("source_ip", "Source IP", maltego.MatchingRuleLoose, r.IP).
-			AddProperty("classification", "Classification", maltego.MatchingRuleLoose, r.Classification)
+		resp.AddEntity(maltego.EntityPhrase, tag)
 	}
 
-	resp.Inform(fmt.Sprintf("Found %d tag(s) for %s", len(r.Tags), req.Value))
 	return resp, nil
 }

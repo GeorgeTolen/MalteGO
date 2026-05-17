@@ -429,12 +429,12 @@ func TestNoiseIPLookupGetTags_MultipleTags(t *testing.T) {
 
 	px := runTransform(t, &NoiseIPLookupGetTags{}, mock, makeReq("1.2.3.4"))
 
-	if len(px.Entities) != 3 {
-		t.Fatalf("expected 3 tag entities, got %d", len(px.Entities))
+	if len(px.Entities) != 4 {
+		t.Fatalf("expected input entity and 3 tag entities, got %d", len(px.Entities))
 	}
-	for _, e := range px.Entities {
-		if e.Type != maltego.EntityHashtag {
-			t.Errorf("entity type = %q, want maltego.Hashtag", e.Type)
+	for _, e := range px.Entities[1:] {
+		if e.Type != maltego.EntityPhrase {
+			t.Errorf("entity type = %q, want maltego.Phrase", e.Type)
 		}
 	}
 	vals := entityValues(px)
@@ -446,7 +446,12 @@ func TestNoiseIPLookupGetTags_MultipleTags(t *testing.T) {
 func TestNoiseIPLookupGetTags_NoTags_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "1.2.3.4", Seen: true, Tags: nil}, nil)
 	px := runTransform(t, &NoiseIPLookupGetTags{}, mock, makeReq("1.2.3.4"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
