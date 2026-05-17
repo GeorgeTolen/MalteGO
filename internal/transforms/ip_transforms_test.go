@@ -208,27 +208,37 @@ func TestNoiseIPLookupGetActor_HasActor(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "5.5.5.5", Seen: true, Actor: "APT28"}, nil)
 	px := runTransform(t, &NoiseIPLookupGetActor{}, mock, makeReq("5.5.5.5"))
 
-	if len(px.Entities) != 1 {
-		t.Fatalf("expected 1 entity, got %d", len(px.Entities))
+	if len(px.Entities) != 2 {
+		t.Fatalf("expected 2 entities, got %d", len(px.Entities))
 	}
-	if px.Entities[0].Type != maltego.EntityPerson {
-		t.Errorf("entity type = %q, want maltego.Person", px.Entities[0].Type)
+	if px.Entities[1].Type != maltego.EntityPerson {
+		t.Errorf("entity type = %q, want maltego.Person", px.Entities[1].Type)
 	}
-	if px.Entities[0].Value != "APT28" {
-		t.Errorf("entity value = %q, want APT28", px.Entities[0].Value)
+	if px.Entities[1].Value != "APT28" {
+		t.Errorf("entity value = %q, want APT28", px.Entities[1].Value)
 	}
 }
 
 func TestNoiseIPLookupGetActor_NoActor_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "5.5.5.5", Seen: true, Actor: ""}, nil)
 	px := runTransform(t, &NoiseIPLookupGetActor{}, mock, makeReq("5.5.5.5"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 func TestNoiseIPLookupGetActor_NotSeen_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "5.5.5.5", Seen: false}, nil)
 	px := runTransform(t, &NoiseIPLookupGetActor{}, mock, makeReq("5.5.5.5"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
