@@ -51,9 +51,10 @@ type parsedXML struct {
 }
 
 type parsedEntity struct {
-	Type       string
-	Value      string
-	Properties map[string]string
+	Type          string
+	Value         string
+	Properties    map[string]string
+	DisplayLabels []string
 }
 
 type parsedMsg struct {
@@ -71,6 +72,11 @@ func mustParseXML(t *testing.T, data []byte) parsedXML {
 	type xmlEntity struct {
 		Type             string `xml:"Type,attr"`
 		Value            string `xml:"Value"`
+		DisplayInformation *struct {
+			Labels []struct {
+				Name string `xml:"Name,attr"`
+			} `xml:"Label"`
+		} `xml:"DisplayInformation"`
 		AdditionalFields *struct {
 			Fields []xmlField `xml:"Field"`
 		} `xml:"AdditionalFields"`
@@ -107,6 +113,11 @@ func mustParseXML(t *testing.T, data []byte) parsedXML {
 		if xe.AdditionalFields != nil {
 			for _, f := range xe.AdditionalFields.Fields {
 				pe.Properties[f.Name] = f.Value
+			}
+		}
+		if xe.DisplayInformation != nil {
+			for _, l := range xe.DisplayInformation.Labels {
+				pe.DisplayLabels = append(pe.DisplayLabels, l.Name)
 			}
 		}
 		out.Entities = append(out.Entities, pe)

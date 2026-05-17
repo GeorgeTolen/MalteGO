@@ -85,7 +85,10 @@ func addRIOTDisplayInfo(ipEnt *maltego.EntityBuilder, classification, lastUpdate
 	if lastUpdated != "" {
 		lastUpdatedText = "Last updated by GreyNoise: " + lastUpdated
 	}
-	ipEnt.AddDisplayInfo("GreyNoise", linkText+classificationText+nameText+lastUpdatedText)
+	content := linkText + classificationText + nameText + lastUpdatedText
+	if content != "" {
+		ipEnt.AddDisplayInfo("GreyNoise", content)
+	}
 	addClassificationOverlay(ipEnt, classification)
 }
 

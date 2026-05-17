@@ -588,6 +588,9 @@ func TestRIOTIPLookup_UnknownIP_ReturnsInform(t *testing.T) {
 	if px.Entities[1].Type != "greynoise.noise" || px.Entities[1].Value != "Not a Common Business Service" {
 		t.Errorf("not-business entity = %#v", px.Entities[1])
 	}
+	if len(px.Entities[0].DisplayLabels) != 0 {
+		t.Errorf("unexpected display labels on RIOT=false input entity: %#v", px.Entities[0].DisplayLabels)
+	}
 	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
 		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
 	}
