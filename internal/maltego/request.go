@@ -95,6 +95,9 @@ func ParseRequest(data []byte) (*Request, error) {
 }
 
 func (r *Request) APIKey(fallback string) string {
+	if k := r.Settings["GNApiKey"]; k != "" {
+		return k
+	}
 	if k := r.Settings["greynoise.api.key"]; k != "" {
 		return k
 	}

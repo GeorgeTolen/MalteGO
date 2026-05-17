@@ -44,7 +44,6 @@ type parsedResponse struct {
 
 func parseXMLResponse(t *testing.T, data []byte) parsedResponse {
 	t.Helper()
-	// Strip XML header before parsing.
 	body := strings.TrimPrefix(string(data), xml.Header)
 	var pr parsedResponse
 	if err := xml.Unmarshal([]byte(body), &pr); err != nil {
@@ -92,8 +91,8 @@ func TestResponse_AddEntity_BasicFields(t *testing.T) {
 	if e.Weight != 100 {
 		t.Errorf("Weight = %d, want 100 (default)", e.Weight)
 	}
-	if e.IconURL != IconURL {
-		t.Errorf("IconURL = %q, want %q", e.IconURL, IconURL)
+	if e.IconURL != "" {
+		t.Errorf("IconURL = %q, want empty by default", e.IconURL)
 	}
 }
 
@@ -171,12 +170,55 @@ func TestEntityBuilder_AddDisplayInfo(t *testing.T) {
 	}
 }
 
-func TestEntityBuilder_AddDisplayInfo_WrappedInCDATA(t *testing.T) {
+func TestEntityBuilder_AddDisplayInfo_EscapesHTML(t *testing.T) {
 	r := NewResponse()
-	r.AddEntity(EntityIPv4Address, "1.2.3.4").AddDisplayInfo("Info", "some content")
+	r.AddEntity(EntityIPv4Address, "1.2.3.4").AddDisplayInfo("Info", "<b>hello</b>")
 	data, _ := r.ToXML()
-	if !strings.Contains(string(data), "CDATA") {
-		t.Error("expected CDATA wrapper in DisplayInformation label")
+	s := string(data)
+	if strings.Contains(s, "CDATA") {
+		t.Error("display information should not use CDATA")
+	}
+	if !strings.Contains(s, "&lt;b&gt;hello&lt;/b&gt;") {
+		t.Errorf("expected escaped HTML in DisplayInformation label, got:\n%s", s)
+	}
+}
+
+func TestEntityBuilder_AddDisplayInfo_DoesNotEscapeQuotes(t *testing.T) {
+	r := NewResponse()
+	r.AddEntity(EntityIPv4Address, "1.2.3.4").AddDisplayInfo("Info", `<a href="https://example.test">open</a>`)
+	data, _ := r.ToXML()
+	s := string(data)
+	if strings.Contains(s, "&#34;") || strings.Contains(s, "&quot;") {
+		t.Errorf("display information should keep quotes like Python maltego-trx output, got:\n%s", s)
+	}
+	if !strings.Contains(s, `href="https://example.test"`) {
+		t.Errorf("expected literal quoted href in escaped display content, got:\n%s", s)
+	}
+}
+
+func TestEntityBuilder_AddDisplayInfo_EscapesAmpersand(t *testing.T) {
+	r := NewResponse()
+	r.AddEntity(EntityIPv4Address, "1.2.3.4").AddDisplayInfo("Info", `a & b`)
+	data, _ := r.ToXML()
+	if !strings.Contains(string(data), "a &amp; b") {
+		t.Errorf("expected escaped ampersand, got:\n%s", string(data))
+	}
+}
+
+func TestResponse_TextNodesDoNotEscapeApostrophes(t *testing.T) {
+	r := NewResponse()
+	r.AddEntity(EntityPhrase, "hasn't").
+		AddProperty("note", "Note", MatchingRuleLoose, "doesn't")
+	r.Inform("wasn't seen")
+	data, _ := r.ToXML()
+	s := string(data)
+	if strings.Contains(s, "&#39;") || strings.Contains(s, "&apos;") {
+		t.Errorf("text nodes should keep apostrophes like Python maltego-trx output, got:\n%s", s)
+	}
+	for _, want := range []string{"<Value>hasn't</Value>", ">doesn't</Field>", ">wasn't seen</UIMessage>"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("expected %q in XML, got:\n%s", want, s)
+		}
 	}
 }
 
@@ -281,13 +323,13 @@ func TestErrorResponse(t *testing.T) {
 	}
 }
 
-// --- XML header / structure ---
+// --- XML structure ---
 
-func TestToXML_ContainsXMLHeader(t *testing.T) {
+func TestToXML_OmitsXMLHeaderLikePythonTRX(t *testing.T) {
 	r := NewResponse()
 	data, _ := r.ToXML()
-	if !strings.HasPrefix(string(data), "<?xml") {
-		t.Error("response should start with XML header")
+	if strings.HasPrefix(string(data), "<?xml") {
+		t.Error("response should omit XML header to match Python maltego-trx output")
 	}
 }
 

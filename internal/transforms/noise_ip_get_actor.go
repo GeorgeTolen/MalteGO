@@ -2,7 +2,6 @@ package transforms
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
@@ -14,28 +13,24 @@ func (t *NoiseIPLookupGetActor) Name() string { return "GreyNoiseNoiseIPLookupGe
 
 func (t *NoiseIPLookupGetActor) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	addInputEntity(resp, req, maltego.EntityIPv4Address)
 
 	r, err := client.ContextIP(ctx, req.Value)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GreyNoise context lookup failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
 	if !r.Seen {
-		resp.Inform(fmt.Sprintf("%s has not been seen by GreyNoise", req.Value))
+		resp.Inform("The IP address " + req.Value + " hasn't been seen by GreyNoise.")
 		return resp, nil
 	}
 
-	if r.Actor == "" {
-		resp.Inform(fmt.Sprintf("No actor attributed to %s", req.Value))
+	if r.Actor == "" || r.Actor == "unknown" {
+		resp.Inform("The IP address " + req.Value + " has no associated Actor.")
 		return resp, nil
 	}
 
-	resp.AddEntity(maltego.EntityPerson, r.Actor).
-		AddDisplayInfo("GreyNoise Actor", fmt.Sprintf("<b>Actor:</b> %s<br/><b>IP:</b> %s", r.Actor, r.IP)).
-		AddProperty("ip", "Source IP", maltego.MatchingRuleLoose, r.IP).
-		AddProperty("classification", "Classification", maltego.MatchingRuleLoose, r.Classification)
-
-	resp.Inform(fmt.Sprintf("Actor for %s: %s", req.Value, r.Actor))
+	resp.AddEntity(maltego.EntityPerson, r.Actor)
 	return resp, nil
 }

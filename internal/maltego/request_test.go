@@ -163,6 +163,13 @@ func TestAPIKey_FromSettings(t *testing.T) {
 	}
 }
 
+func TestAPIKey_FromUpstreamGNApiKeySetting(t *testing.T) {
+	req := &Request{Settings: map[string]string{"GNApiKey": "test-key-123"}}
+	if got := req.APIKey("fallback-key"); got != "test-key-123" {
+		t.Errorf("APIKey = %q, want test-key-123", got)
+	}
+}
+
 func TestAPIKey_FallbackWhenNotInSettings(t *testing.T) {
 	req := mustParse(t, minimalXML)
 	if got := req.APIKey("env-key"); got != "env-key" {

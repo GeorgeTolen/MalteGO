@@ -3,7 +3,6 @@ package transforms
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
@@ -15,36 +14,34 @@ func (t *NoiseIPSims) Name() string { return "GreyNoiseNoiseIPSims" }
 
 func (t *NoiseIPSims) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	inputIP := addInputEntity(resp, req, maltego.EntityIPv4Address)
 
-	r, err := client.SimilarIPs(ctx, req.Value)
+	limit := intSetting(req, "limit", 50)
+	minimumScore := intSetting(req, "minimum_score", 90)
+
+	r, err := client.SimilarIPs(ctx, req.Value, minimumScore, limit)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GreyNoise similarity lookup failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
 	if len(r.Similar) == 0 {
-		resp.Inform(fmt.Sprintf("No similar IPs found for %s", req.Value))
+		resp.Inform("The IP address " + req.Value + " has no similar IPs within GreyNoise.")
 		return resp, nil
 	}
 
-	limit := req.HardLimit
-	if limit <= 0 || limit > len(r.Similar) {
-		limit = len(r.Similar)
+	for _, sim := range r.Similar {
+		resp.AddEntity(maltego.EntityIPv4Address, sim.IP)
 	}
 
-	for _, sim := range r.Similar[:limit] {
-		displayHTML := fmt.Sprintf(
-			"<b>IP:</b> %s<br/><b>Similarity Score:</b> %.2f<br/><b>Actor:</b> %s<br/><b>Features:</b> %s",
-			sim.IP, sim.Score, sim.Actor, strings.Join(sim.Similarity, ", "),
-		)
-		resp.AddEntity(maltego.EntityIPv4Address, sim.IP).
-			AddDisplayInfo("GreyNoise Similar IP", displayHTML).
-			AddProperty("similarity_score", "Similarity Score", maltego.MatchingRuleLoose, fmt.Sprintf("%.4f", sim.Score)).
-			AddProperty("actor", "Actor", maltego.MatchingRuleLoose, sim.Actor).
-			AddProperty("features", "Shared Features", maltego.MatchingRuleLoose, strings.Join(sim.Similarity, ", ")).
-			AddProperty("source_ip", "Source IP", maltego.MatchingRuleLoose, req.Value)
+	ipAddress := r.IP
+	if ipAddress == "" {
+		ipAddress = req.Value
 	}
-
-	resp.Inform(fmt.Sprintf("Found %d similar IP(s) for %s", limit, req.Value))
+	displayHTML := fmt.Sprintf(
+		`<h3><a href="https://viz.greynoise.io/ip-similarity/%s">See Similarity results in GreyNoise</a></h3><br/>%s is %d%% or more similar to %d other IP addresses in the GreyNoise.<br/>`,
+		ipAddress, ipAddress, minimumScore, len(r.Similar),
+	)
+	inputIP.AddDisplayInfo("GreyNoise Similarity", displayHTML)
 	return resp, nil
 }

@@ -1,5 +1,7 @@
 package greynoise
 
+import "encoding/json"
+
 // CommunityResponse — /v3/community/{ip}
 type CommunityResponse struct {
 	IP             string `json:"ip"`
@@ -26,6 +28,9 @@ type ContextResponse struct {
 	Ports          []int         `json:"ports"`
 	Metadata       Metadata      `json:"metadata"`
 	RawData        RawData       `json:"raw_data"`
+	VPN            bool          `json:"vpn"`
+	VPNService     string        `json:"vpn_service"`
+	Bot            bool          `json:"bot"`
 }
 
 type Metadata struct {
@@ -69,6 +74,34 @@ type SimilarityResponse struct {
 	Similar []SimilarIP `json:"similar_ips"`
 	Total   int         `json:"total"`
 	Message string      `json:"message"`
+}
+
+func (r *SimilarityResponse) UnmarshalJSON(data []byte) error {
+	type alias SimilarityResponse
+	var raw struct {
+		IP json.RawMessage `json:"ip"`
+		*alias
+	}
+	raw.alias = (*alias)(r)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if len(raw.IP) == 0 {
+		return nil
+	}
+	var ipString string
+	if err := json.Unmarshal(raw.IP, &ipString); err == nil {
+		r.IP = ipString
+		return nil
+	}
+	var ipObject struct {
+		IP string `json:"ip"`
+	}
+	if err := json.Unmarshal(raw.IP, &ipObject); err != nil {
+		return err
+	}
+	r.IP = ipObject.IP
+	return nil
 }
 
 type SimilarIP struct {

@@ -1,0 +1,10 @@
+<MaltegoEntity id="greynoise.noise" displayName="GreyNouse Noise" displayNamePlural="GreyNouse Noises" description="GreyNouse Noise" category="My Entities" smallIconResource="Technology/AccessPoint" largeIconResource="Technology/AccessPoint" allowedRoot="true" conversionOrder="2147483647" visible="true">
+   <Properties value="properties.greynousenoise" displayValue="properties.greynousenoise">
+      <Groups/>
+      <Fields>
+         <Field name="properties.greynousenoise" type="string" nullable="true" hidden="false" readonly="false" description="" displayName="GreyNouse Noise">
+            <SampleValue>-</SampleValue>
+         </Field>
+      </Fields>
+   </Properties>
+</MaltegoEntity>

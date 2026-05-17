@@ -51,9 +51,10 @@ type parsedXML struct {
 }
 
 type parsedEntity struct {
-	Type       string
-	Value      string
-	Properties map[string]string
+	Type          string
+	Value         string
+	Properties    map[string]string
+	DisplayLabels []string
 }
 
 type parsedMsg struct {
@@ -71,6 +72,11 @@ func mustParseXML(t *testing.T, data []byte) parsedXML {
 	type xmlEntity struct {
 		Type             string `xml:"Type,attr"`
 		Value            string `xml:"Value"`
+		DisplayInformation *struct {
+			Labels []struct {
+				Name string `xml:"Name,attr"`
+			} `xml:"Label"`
+		} `xml:"DisplayInformation"`
 		AdditionalFields *struct {
 			Fields []xmlField `xml:"Field"`
 		} `xml:"AdditionalFields"`
@@ -109,6 +115,11 @@ func mustParseXML(t *testing.T, data []byte) parsedXML {
 				pe.Properties[f.Name] = f.Value
 			}
 		}
+		if xe.DisplayInformation != nil {
+			for _, l := range xe.DisplayInformation.Labels {
+				pe.DisplayLabels = append(pe.DisplayLabels, l.Name)
+			}
+		}
 		out.Entities = append(out.Entities, pe)
 	}
 	for _, m := range root.Response.UIMessages.Messages {
@@ -137,6 +148,19 @@ func assertInformNoEntities(t *testing.T, px parsedXML) {
 	t.Helper()
 	if len(px.Entities) != 0 {
 		t.Errorf("expected no entities, got %d", len(px.Entities))
+	}
+	for _, m := range px.Messages {
+		if m.Type == "Inform" {
+			return
+		}
+	}
+	t.Error("expected at least one Inform UIMessage")
+}
+
+func assertInformWithInputEntity(t *testing.T, px parsedXML) {
+	t.Helper()
+	if len(px.Entities) != 1 {
+		t.Errorf("expected copied input entity, got %d", len(px.Entities))
 	}
 	for _, m := range px.Messages {
 		if m.Type == "Inform" {

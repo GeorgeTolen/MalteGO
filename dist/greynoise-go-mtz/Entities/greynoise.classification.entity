@@ -1,0 +1,10 @@
+<MaltegoEntity id="greynoise.classification" displayName="GreyNoise Classification" displayNamePlural="GreyNoise Classifications" description="GN Classification" category="My Entities" smallIconResource="Threats/BioAgent" largeIconResource="Threats/BioAgent" allowedRoot="true" conversionOrder="2147483647" visible="true">
+   <Properties value="properties.greynoiseclassification" displayValue="properties.greynoiseclassification">
+      <Groups/>
+      <Fields>
+         <Field name="properties.greynoiseclassification" type="string" nullable="true" hidden="false" readonly="false" description="" displayName="GreyNoise Classification">
+            <SampleValue>-</SampleValue>
+         </Field>
+      </Fields>
+   </Properties>
+</MaltegoEntity>

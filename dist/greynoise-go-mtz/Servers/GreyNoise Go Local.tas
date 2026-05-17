@@ -1,0 +1,21 @@
+﻿<MaltegoServer name="GreyNoise Go Local" enabled="true" description="GreyNoise Go local transforms" url="http://localhost">
+   <LastSync>2026-05-17 00:00:00.000 UTC</LastSync>
+   <Protocol version="0.0"/>
+   <Authentication type="none"/>
+   <Transforms>
+      <Transform name="greynoise.GreyNoiseCommunityIPLookup"/>
+      <Transform name="greynoise.GreyNoiseNoiseIPLookupAllDetails"/>
+      <Transform name="greynoise.GreyNoiseNoiseIPLookupGetActor"/>
+      <Transform name="greynoise.GreyNoiseNoiseIPLookupGetCVEs"/>
+      <Transform name="greynoise.GreyNoiseNoiseIPLookupGetOrg"/>
+      <Transform name="greynoise.GreyNoiseNoiseIPLookupGetPorts"/>
+      <Transform name="greynoise.GreyNoiseNoiseIPLookupGetTags"/>
+      <Transform name="greynoise.GreyNoiseNoiseIPSims"/>
+      <Transform name="greynoise.GreyNoiseRIOTIPLookup"/>
+      <Transform name="greynoise.GreyNoiseQueryByASN"/>
+      <Transform name="greynoise.GreyNoiseQueryByActor"/>
+      <Transform name="greynoise.GreyNoiseQueryByCVE"/>
+      <Transform name="greynoise.GreyNoiseQueryByTag"/>
+   </Transforms>
+   <Seeds/>
+</MaltegoServer>

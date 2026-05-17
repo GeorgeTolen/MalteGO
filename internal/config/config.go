@@ -38,7 +38,7 @@ func Load() (*Config, error) {
 
 	apiKey := os.Getenv("GREYNOISE_API_KEY")
 	if apiKey == "" {
-		fmt.Println("[warn] GREYNOISE_API_KEY not set; transforms will use key from request TransformFields")
+		fmt.Fprintln(os.Stderr, "[warn] GREYNOISE_API_KEY not set; transforms will use key from request TransformFields")
 	}
 
 	return &Config{

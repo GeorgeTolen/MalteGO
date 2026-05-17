@@ -14,27 +14,30 @@ func (t *QueryByActor) Name() string { return "GreyNoiseQueryByActor" }
 
 func (t *QueryByActor) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	addInputEntity(resp, req, maltego.EntityPerson)
 
-	query := fmt.Sprintf("actor:%s", req.Value)
+	fromDate, toDate := queryDateRange(req)
+	query := fmt.Sprintf("actor:%s last_seen:[%s TO %s]", req.Value, fromDate, toDate)
+	if asn := req.Settings["asn"]; asn != "" {
+		query += " asn:AS" + asn
+	}
+	if port := req.Settings["port"]; port != "" && port != "0" {
+		query += " raw_data.scan.port:" + port
+	}
 	r, err := client.GNQL(ctx, query, req.HardLimit)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GNQL query failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
-	if len(r.Data) == 0 {
-		resp.Inform(fmt.Sprintf("No IPs found for actor %q", req.Value))
+	if r.Count <= 1 {
+		resp.Inform("The Query " + query + " did not return any results.")
 		return resp, nil
 	}
 
 	for _, entry := range r.Data {
-		resp.AddEntity(maltego.EntityIPv4Address, entry.IP).
-			AddProperty("classification", "Classification", maltego.MatchingRuleLoose, entry.Classification).
-			AddProperty("actor", "Actor", maltego.MatchingRuleLoose, entry.Actor).
-			AddProperty("country", "Country", maltego.MatchingRuleLoose, entry.Country).
-			AddProperty("last_seen", "Last Seen", maltego.MatchingRuleLoose, entry.LastSeen)
+		resp.AddEntity(maltego.EntityIPv4Address, entry.IP)
 	}
 
-	resp.Inform(fmt.Sprintf("Found %d IP(s) for actor %q", len(r.Data), req.Value))
 	return resp, nil
 }

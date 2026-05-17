@@ -2,7 +2,6 @@ package transforms
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
@@ -14,34 +13,37 @@ func (t *RIOTIPLookup) Name() string { return "GreyNoiseRIOTIPLookup" }
 
 func (t *RIOTIPLookup) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	inputIP := addInputEntity(resp, req, maltego.EntityIPv4Address)
 
 	r, err := client.RIOT(ctx, req.Value)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GreyNoise RIOT lookup failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
 	if !r.Riot {
-		resp.Inform(fmt.Sprintf("%s is not in the GreyNoise RIOT dataset", req.Value))
+		resp.AddEntity("greynoise.noise", "Not a Common Business Service")
+		resp.Inform("The IP address " + req.Value + " is not found in GreyNoise RIOT IP Dataset.")
+		addRIOTDisplayInfo(inputIP, "", r.LastUpdated, "", r.Name)
 		return resp, nil
 	}
 
-	displayHTML := fmt.Sprintf(
-		"<b>IP:</b> %s<br/><b>RIOT:</b> %v<br/><b>Name:</b> %s<br/><b>Category:</b> %s<br/>"+
-			"<b>Trust Level:</b> %s<br/><b>Description:</b> %s<br/><b>Last Updated:</b> %s",
-		r.IP, r.Riot, r.Name, r.Category, r.TrustLevel, r.Description, r.LastUpdated,
-	)
+	resp.AddEntity("greynoise.noise", "Common Business Service Detected")
+	if r.Name != "" && r.Name != "unknown" {
+		resp.AddEntity(maltego.EntityOrganization, r.Name)
+	}
 
-	resp.AddEntity(maltego.EntityIPv4Address, r.IP).
-		AddDisplayInfo("GreyNoise RIOT", displayHTML).
-		AddProperty("riot", "RIOT", maltego.MatchingRuleLoose, fmt.Sprintf("%v", r.Riot)).
-		AddProperty("name", "Service Name", maltego.MatchingRuleLoose, r.Name).
-		AddProperty("category", "Category", maltego.MatchingRuleLoose, r.Category).
-		AddProperty("trust_level", "Trust Level", maltego.MatchingRuleLoose, r.TrustLevel).
-		AddProperty("description", "Description", maltego.MatchingRuleLoose, r.Description).
-		AddProperty("reference", "Reference", maltego.MatchingRuleLoose, r.Reference).
-		AddProperty("last_updated", "Last Updated", maltego.MatchingRuleLoose, r.LastUpdated)
+	classification := "RIOT"
+	if r.TrustLevel == "1" {
+		classification = "RIOT - Reasonably Ignore"
+	} else if r.TrustLevel == "2" {
+		classification = "RIOT - Commonly Seen"
+	}
+	resp.AddEntity("greynoise.classification", classification)
 
-	resp.Inform(fmt.Sprintf("RIOT lookup for %s: %s (%s)", req.Value, r.Name, r.Category))
+	link := "https://www.greynoise.io/viz/riot/" + r.IP
+	inputIP.AddProperty("gn_url", "GreyNoise URL", maltego.MatchingRuleLoose, link).
+		AddProperty("gn_last_updated", "GreyNoise last updated", maltego.MatchingRuleLoose, r.LastUpdated)
+	addRIOTDisplayInfo(inputIP, "", r.LastUpdated, link, r.Name)
 	return resp, nil
 }

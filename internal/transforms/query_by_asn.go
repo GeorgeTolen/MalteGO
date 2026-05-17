@@ -3,7 +3,6 @@ package transforms
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
@@ -15,33 +14,31 @@ func (t *QueryByASN) Name() string { return "GreyNoiseQueryByASN" }
 
 func (t *QueryByASN) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	addInputEntity(resp, req, maltego.EntityAS)
 
-	asn := strings.TrimSpace(req.Value)
-	// Normalise: GNQL expects "AS12345" format.
-	if !strings.HasPrefix(strings.ToUpper(asn), "AS") {
-		asn = "AS" + asn
+	fromDate, toDate := queryDateRange(req)
+	query := fmt.Sprintf("metadata.asn:AS%s last_seen:[%s TO %s]", req.Value, fromDate, toDate)
+	if actor := req.Settings["actor"]; actor != "" {
+		query += " actor:'" + actor + "'"
+	}
+	if port := req.Settings["port"]; port != "" && port != "0" {
+		query += " raw_data.scan.port:" + port
 	}
 
-	query := fmt.Sprintf("metadata.asn:%s", asn)
 	r, err := client.GNQL(ctx, query, req.HardLimit)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GNQL query failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
-	if len(r.Data) == 0 {
-		resp.Inform(fmt.Sprintf("No results for ASN %s", asn))
+	if r.Count <= 1 {
+		resp.Inform("The Query " + query + " did not return any results.")
 		return resp, nil
 	}
 
 	for _, entry := range r.Data {
-		resp.AddEntity(maltego.EntityIPv4Address, entry.IP).
-			AddProperty("classification", "Classification", maltego.MatchingRuleLoose, entry.Classification).
-			AddProperty("actor", "Actor", maltego.MatchingRuleLoose, entry.Actor).
-			AddProperty("asn", "ASN", maltego.MatchingRuleLoose, entry.ASN).
-			AddProperty("last_seen", "Last Seen", maltego.MatchingRuleLoose, entry.LastSeen)
+		resp.AddEntity(maltego.EntityIPv4Address, entry.IP)
 	}
 
-	resp.Inform(fmt.Sprintf("Found %d IP(s) for ASN %s", len(r.Data), asn))
 	return resp, nil
 }

@@ -3,6 +3,7 @@ package transforms
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
@@ -15,29 +16,39 @@ func (t *QueryByCVE) Name() string { return "GreyNoiseQueryByCVE" }
 
 func (t *QueryByCVE) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	addInputEntity(resp, req, maltego.EntityCVE)
 
-	cve := strings.ToUpper(strings.TrimSpace(req.Value))
-	query := fmt.Sprintf("cve:%s", cve)
-	r, err := client.GNQL(ctx, query, req.HardLimit)
-	if err != nil {
-		resp.FatalError(fmt.Sprintf("GNQL query failed: %v", err))
+	cve := strings.TrimSpace(req.Value)
+	if !regexp.MustCompile(`^CVE-\d{4}-\d{4,7}$`).MatchString(cve) {
+		resp.Inform(req.Value + " is not a properly formatted CVE.")
 		return resp, nil
 	}
 
-	if len(r.Data) == 0 {
-		resp.Inform(fmt.Sprintf("No IPs found exploiting %s", cve))
+	fromDate, toDate := queryDateRange(req)
+	query := fmt.Sprintf("cve:%s last_seen:[%s TO %s]", cve, fromDate, toDate)
+	if asn := req.Settings["asn"]; asn != "" {
+		query += " asn:AS" + asn
+	}
+	if actor := req.Settings["actor"]; actor != "" {
+		query += " actor:'" + actor + "'"
+	}
+	if port := req.Settings["port"]; port != "" && port != "0" {
+		query += " raw_data.scan.port:" + port
+	}
+	r, err := client.GNQL(ctx, query, req.HardLimit)
+	if err != nil {
+		resp.Inform(err.Error())
+		return resp, nil
+	}
+
+	if r.Count <= 1 {
+		resp.Inform("The Query " + query + " did not return any results.")
 		return resp, nil
 	}
 
 	for _, entry := range r.Data {
-		resp.AddEntity(maltego.EntityIPv4Address, entry.IP).
-			AddProperty("classification", "Classification", maltego.MatchingRuleLoose, entry.Classification).
-			AddProperty("actor", "Actor", maltego.MatchingRuleLoose, entry.Actor).
-			AddProperty("country", "Country", maltego.MatchingRuleLoose, entry.Country).
-			AddProperty("organization", "Organization", maltego.MatchingRuleLoose, entry.Organization).
-			AddProperty("last_seen", "Last Seen", maltego.MatchingRuleLoose, entry.LastSeen)
+		resp.AddEntity(maltego.EntityIPv4Address, entry.IP)
 	}
 
-	resp.Inform(fmt.Sprintf("Found %d IP(s) exploiting %s", len(r.Data), cve))
 	return resp, nil
 }

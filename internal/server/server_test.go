@@ -282,13 +282,13 @@ func TestHandleTransform_Success_ReturnsXMLWithEntities(t *testing.T) {
 	}
 }
 
-func TestHandleTransform_Success_ResponseStartsWithXMLHeader(t *testing.T) {
+func TestHandleTransform_Success_ResponseOmitsXMLHeader(t *testing.T) {
 	srv := buildServer(testConfig())
 	body := maltegoXML(maltego.EntityIPv4Address, "1.1.1.1", "test-key")
 	w := doRequest(t, srv, http.MethodPost, "/run/EchoTransform", body)
 
-	if !strings.HasPrefix(w.Body.String(), "<?xml") {
-		t.Error("response should start with XML declaration")
+	if strings.HasPrefix(w.Body.String(), "<?xml") {
+		t.Error("response should omit XML declaration to match Python maltego-trx output")
 	}
 }
 
