@@ -92,8 +92,8 @@ func TestResponse_AddEntity_BasicFields(t *testing.T) {
 	if e.Weight != 100 {
 		t.Errorf("Weight = %d, want 100 (default)", e.Weight)
 	}
-	if e.IconURL != IconURL {
-		t.Errorf("IconURL = %q, want %q", e.IconURL, IconURL)
+	if e.IconURL != "" {
+		t.Errorf("IconURL = %q, want empty by default", e.IconURL)
 	}
 }
 

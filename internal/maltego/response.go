@@ -16,8 +16,10 @@ type respEntity struct {
 	Type               string
 	Value              string
 	Weight             int
+	LinkLabel          string
 	DisplayInformation []Label
 	Properties         []Field
+	Overlays           []Overlay
 	IconURL            string
 }
 
@@ -34,6 +36,12 @@ type Field struct {
 	Value        string
 }
 
+type Overlay struct {
+	PropertyName string
+	Position     string
+	Type         string
+}
+
 type respUIMessage struct {
 	Type    string
 	Message string
@@ -45,10 +53,9 @@ func NewResponse() *Response {
 
 func (r *Response) AddEntity(entityType, value string) *EntityBuilder {
 	e := respEntity{
-		Type:    entityType,
-		Value:   value,
-		Weight:  100,
-		IconURL: IconURL,
+		Type:   entityType,
+		Value:  value,
+		Weight: 100,
 	}
 	r.entities = append(r.entities, e)
 	return &EntityBuilder{resp: r, idx: len(r.entities) - 1}
@@ -82,6 +89,11 @@ func (b *EntityBuilder) SetIconURL(url string) *EntityBuilder {
 	return b
 }
 
+func (b *EntityBuilder) SetLinkLabel(label string) *EntityBuilder {
+	b.resp.entities[b.idx].LinkLabel = label
+	return b
+}
+
 func (b *EntityBuilder) AddDisplayInfo(name, content string) *EntityBuilder {
 	b.resp.entities[b.idx].DisplayInformation = append(
 		b.resp.entities[b.idx].DisplayInformation,
@@ -94,6 +106,14 @@ func (b *EntityBuilder) AddProperty(name, displayName, matchingRule, value strin
 	b.resp.entities[b.idx].Properties = append(
 		b.resp.entities[b.idx].Properties,
 		Field{Name: name, DisplayName: displayName, MatchingRule: matchingRule, Value: value},
+	)
+	return b
+}
+
+func (b *EntityBuilder) AddOverlay(propertyName, position, overlayType string) *EntityBuilder {
+	b.resp.entities[b.idx].Overlays = append(
+		b.resp.entities[b.idx].Overlays,
+		Overlay{PropertyName: propertyName, Position: position, Type: overlayType},
 	)
 	return b
 }
@@ -118,8 +138,10 @@ type xmlRespEntity struct {
 	Type               string              `xml:"Type,attr"`
 	Value              string              `xml:"Value"`
 	Weight             int                 `xml:"Weight"`
+	LinkLabel          string              `xml:"LinkLabel,omitempty"`
 	DisplayInformation *xmlDisplayInfo     `xml:"DisplayInformation,omitempty"`
 	AdditionalFields   *xmlRespFields      `xml:"AdditionalFields,omitempty"`
+	Overlays           *xmlOverlays        `xml:"Overlays,omitempty"`
 	IconURL            string              `xml:"IconURL,omitempty"`
 }
 
@@ -144,6 +166,16 @@ type xmlRespField struct {
 	Value        string `xml:",chardata"`
 }
 
+type xmlOverlays struct {
+	Overlays []xmlOverlay `xml:"Overlay"`
+}
+
+type xmlOverlay struct {
+	Position     string `xml:"position,attr"`
+	PropertyName string `xml:"propertyName,attr"`
+	Type         string `xml:"type,attr"`
+}
+
 type xmlUIMessages struct {
 	Messages []xmlUIMessage `xml:"UIMessage"`
 }
@@ -163,10 +195,11 @@ func (r *Response) ToXML() ([]byte, error) {
 
 	for _, e := range r.entities {
 		xe := xmlRespEntity{
-			Type:    e.Type,
-			Value:   e.Value,
-			Weight:  e.Weight,
-			IconURL: e.IconURL,
+			Type:      e.Type,
+			Value:     e.Value,
+			Weight:    e.Weight,
+			LinkLabel: e.LinkLabel,
+			IconURL:   e.IconURL,
 		}
 
 		if len(e.DisplayInformation) > 0 {
@@ -192,6 +225,18 @@ func (r *Response) ToXML() ([]byte, error) {
 				})
 			}
 			xe.AdditionalFields = rf
+		}
+
+		if len(e.Overlays) > 0 {
+			overlays := &xmlOverlays{}
+			for _, o := range e.Overlays {
+				overlays.Overlays = append(overlays.Overlays, xmlOverlay{
+					Position:     o.Position,
+					PropertyName: o.PropertyName,
+					Type:         o.Type,
+				})
+			}
+			xe.Overlays = overlays
 		}
 
 		out.Response.Entities.Entities = append(out.Response.Entities.Entities, xe)
