@@ -260,10 +260,10 @@ func TestNoiseIPLookupGetCVEs_MultipleCVEs(t *testing.T) {
 
 	px := runTransform(t, &NoiseIPLookupGetCVEs{}, mock, makeReq("1.2.3.4"))
 
-	if len(px.Entities) != 3 {
-		t.Fatalf("expected 3 CVE entities, got %d", len(px.Entities))
+	if len(px.Entities) != 4 {
+		t.Fatalf("expected input entity and 3 CVE entities, got %d", len(px.Entities))
 	}
-	for _, e := range px.Entities {
+	for _, e := range px.Entities[1:] {
 		if e.Type != maltego.EntityCVE {
 			t.Errorf("entity type = %q, want maltego.CVE", e.Type)
 		}
@@ -273,7 +273,12 @@ func TestNoiseIPLookupGetCVEs_MultipleCVEs(t *testing.T) {
 func TestNoiseIPLookupGetCVEs_NoCVEs_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "1.2.3.4", Seen: true, CVEs: nil}, nil)
 	px := runTransform(t, &NoiseIPLookupGetCVEs{}, mock, makeReq("1.2.3.4"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
