@@ -151,31 +151,47 @@ func TestNoiseIPLookupAllDetails_Success_FullContext(t *testing.T) {
 
 	px := runTransform(t, &NoiseIPLookupAllDetails{}, mock, makeReq("5.5.5.5"))
 
-	if len(px.Entities) != 1 {
-		t.Fatalf("expected 1 entity, got %d", len(px.Entities))
+	if len(px.Entities) != 9 {
+		t.Fatalf("expected 9 entities, got %d", len(px.Entities))
 	}
 	e := px.Entities[0]
-	if e.Properties["classification"] != "malicious" {
-		t.Errorf("classification = %q", e.Properties["classification"])
+	if e.Properties["gn_last_seen"] != "2024-01-01" {
+		t.Errorf("gn_last_seen = %q", e.Properties["gn_last_seen"])
 	}
-	if e.Properties["actor"] != "Mirai" {
-		t.Errorf("actor = %q", e.Properties["actor"])
+	if px.Entities[1].Type != "greynoise.noise" || px.Entities[1].Value != "Noise Detected" {
+		t.Errorf("noise entity = %#v", px.Entities[1])
 	}
-	if e.Properties["asn"] != "AS12345" {
-		t.Errorf("asn = %q", e.Properties["asn"])
+	if px.Entities[2].Type != maltego.EntityPerson || px.Entities[2].Value != "Mirai" {
+		t.Errorf("actor entity = %#v", px.Entities[2])
+	}
+	if px.Entities[4].Type != maltego.EntityAS || px.Entities[4].Value != "12345" {
+		t.Errorf("asn entity = %#v", px.Entities[4])
 	}
 }
 
 func TestNoiseIPLookupAllDetails_NotSeen_ReturnsInform(t *testing.T) {
 	mock := contextMock(&greynoise.ContextResponse{IP: "10.0.0.1", Seen: false}, nil)
 	px := runTransform(t, &NoiseIPLookupAllDetails{}, mock, makeReq("10.0.0.1"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 2 {
+		t.Fatalf("expected input IP and no-noise entities, got %d", len(px.Entities))
+	}
+	if px.Entities[1].Type != "greynoise.noise" || px.Entities[1].Value != "No Noise Detected" {
+		t.Errorf("no-noise entity = %#v", px.Entities[1])
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 func TestNoiseIPLookupAllDetails_APIError_ReturnsFatalError(t *testing.T) {
 	mock := contextMock(nil, errors.New("api error"))
 	px := runTransform(t, &NoiseIPLookupAllDetails{}, mock, makeReq("5.5.5.5"))
-	assertFatalError(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -15,45 +15,61 @@ func (t *NoiseIPLookupAllDetails) Name() string { return "GreyNoiseNoiseIPLookup
 
 func (t *NoiseIPLookupAllDetails) Run(ctx context.Context, client greynoise.Client, req *maltego.Request) (*maltego.Response, error) {
 	resp := maltego.NewResponse()
+	inputIP := addInputEntity(resp, req, maltego.EntityIPv4Address)
 
 	r, err := client.ContextIP(ctx, req.Value)
 	if err != nil {
-		resp.FatalError(fmt.Sprintf("GreyNoise context lookup failed: %v", err))
+		resp.Inform(err.Error())
 		return resp, nil
 	}
 
 	if !r.Seen {
-		resp.Inform(fmt.Sprintf("%s has not been seen by GreyNoise", req.Value))
+		resp.AddEntity("greynoise.noise", "No Noise Detected")
+		resp.Inform("The IP address " + req.Value + " hasn't been seen by GreyNoise.")
+		addNoiseDisplayInfo(inputIP, r.Classification, r.LastSeen, contextLink(r), r.Actor, r.Tags)
 		return resp, nil
 	}
 
-	displayHTML := fmt.Sprintf(
-		"<b>IP:</b> %s<br/><b>Classification:</b> %s<br/><b>Actor:</b> %s<br/>"+
-			"<b>First Seen:</b> %s<br/><b>Last Seen:</b> %s<br/>"+
-			"<b>ASN:</b> %s<br/><b>Org:</b> %s<br/><b>Country:</b> %s<br/>"+
-			"<b>Tags:</b> %s<br/><b>CVEs:</b> %s<br/><b>Spoofable:</b> %v<br/><b>Tor:</b> %v",
-		r.IP, r.Classification, r.Actor,
-		r.FirstSeen, r.LastSeen,
-		r.Metadata.ASN, r.Metadata.Organization, r.Metadata.Country,
-		strings.Join(r.Tags, ", "), strings.Join(r.CVEs, ", "),
-		r.Spoofable, r.Metadata.Tor,
-	)
+	resp.AddEntity("greynoise.noise", "Noise Detected")
+	if r.Actor != "" && r.Actor != "unknown" {
+		resp.AddEntity(maltego.EntityPerson, r.Actor)
+	}
+	if r.Classification != "" {
+		resp.AddEntity("greynoise.classification", r.Classification)
+	}
+	if r.Metadata.ASN != "" {
+		resp.AddEntity(maltego.EntityAS, strings.TrimPrefix(r.Metadata.ASN, "AS"))
+	}
+	if r.Metadata.Organization != "" {
+		resp.AddEntity(maltego.EntityCompany, r.Metadata.Organization)
+	}
+	if r.Metadata.City != "" && r.Metadata.Country != "" && r.Metadata.CountryCode != "" {
+		resp.AddEntity(maltego.EntityLocation, fmt.Sprintf("%s, %s (%s)", r.Metadata.City, r.Metadata.Country, r.Metadata.CountryCode))
+	}
+	if r.VPN {
+		resp.AddEntity(maltego.EntityService, "VPN Service: "+r.VPNService)
+	}
+	if r.Bot {
+		resp.AddEntity(maltego.EntityService, "Common Bot Activity")
+	}
+	if r.Metadata.Tor {
+		resp.AddEntity(maltego.EntityService, "Tor Exit Node")
+	}
+	for _, cve := range r.CVEs {
+		resp.AddEntity(maltego.EntityCVE, cve).
+			AddProperty("link#maltego.link.label", "Label", maltego.MatchingRuleLoose, "Probes For")
+	}
+	for _, item := range r.RawData.Scan {
+		resp.AddEntity(maltego.EntityPort, fmt.Sprintf("%d", item.Port)).
+			AddProperty("link#maltego.link.label", "Label", maltego.MatchingRuleLoose, "Scans For")
+	}
+	for _, tag := range r.Tags {
+		resp.AddEntity(maltego.EntityPhrase, tag)
+	}
 
-	resp.AddEntity(maltego.EntityIPv4Address, r.IP).
-		AddDisplayInfo("GreyNoise Context", displayHTML).
-		AddProperty("classification", "Classification", maltego.MatchingRuleLoose, r.Classification).
-		AddProperty("actor", "Actor", maltego.MatchingRuleLoose, r.Actor).
-		AddProperty("first_seen", "First Seen", maltego.MatchingRuleLoose, r.FirstSeen).
-		AddProperty("last_seen", "Last Seen", maltego.MatchingRuleLoose, r.LastSeen).
-		AddProperty("asn", "ASN", maltego.MatchingRuleLoose, r.Metadata.ASN).
-		AddProperty("organization", "Organization", maltego.MatchingRuleLoose, r.Metadata.Organization).
-		AddProperty("country", "Country", maltego.MatchingRuleLoose, r.Metadata.Country).
-		AddProperty("tags", "Tags", maltego.MatchingRuleLoose, strings.Join(r.Tags, ", ")).
-		AddProperty("cves", "CVEs", maltego.MatchingRuleLoose, strings.Join(r.CVEs, ", ")).
-		AddProperty("spoofable", "Spoofable", maltego.MatchingRuleLoose, fmt.Sprintf("%v", r.Spoofable)).
-		AddProperty("tor", "Tor", maltego.MatchingRuleLoose, fmt.Sprintf("%v", r.Metadata.Tor)).
-		AddProperty("os", "OS", maltego.MatchingRuleLoose, r.Metadata.OS)
-
-	resp.Inform(fmt.Sprintf("Context lookup for %s complete", req.Value))
+	link := contextLink(r)
+	inputIP.AddProperty("gn_url", "GreyNoise URL", maltego.MatchingRuleLoose, link).
+		AddProperty("gn_last_seen", "GreyNoise last seen", maltego.MatchingRuleLoose, r.LastSeen)
+	addNoiseDisplayInfo(inputIP, r.Classification, r.LastSeen, link, r.Actor, r.Tags)
 	return resp, nil
 }

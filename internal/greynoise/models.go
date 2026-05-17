@@ -26,6 +26,9 @@ type ContextResponse struct {
 	Ports          []int         `json:"ports"`
 	Metadata       Metadata      `json:"metadata"`
 	RawData        RawData       `json:"raw_data"`
+	VPN            bool          `json:"vpn"`
+	VPNService     string        `json:"vpn_service"`
+	Bot            bool          `json:"bot"`
 }
 
 type Metadata struct {
