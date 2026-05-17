@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
@@ -119,4 +120,23 @@ func intSetting(req *maltego.Request, name string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func queryDateRange(req *maltego.Request) (string, string) {
+	queryRange := ""
+	if req.Settings != nil {
+		queryRange = req.Settings["queryTimeRange"]
+	}
+	parts := strings.Split(queryRange, "-")
+	if len(parts) == 2 {
+		fromPart := strings.Split(parts[0], ".")[0]
+		toPart := strings.Split(parts[1], ".")[0]
+		fromTime, fromErr := strconv.ParseInt(fromPart, 10, 64)
+		toTime, toErr := strconv.ParseInt(toPart, 10, 64)
+		if fromErr == nil && toErr == nil {
+			return time.Unix(fromTime, 0).Format("2006-01-02"), time.Unix(toTime, 0).Format("2006-01-02")
+		}
+	}
+	now := time.Now().Format("2006-01-02")
+	return now, now
 }

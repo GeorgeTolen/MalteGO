@@ -146,6 +146,19 @@ func assertInformNoEntities(t *testing.T, px parsedXML) {
 	t.Error("expected at least one Inform UIMessage")
 }
 
+func assertInformWithInputEntity(t *testing.T, px parsedXML) {
+	t.Helper()
+	if len(px.Entities) != 1 {
+		t.Errorf("expected copied input entity, got %d", len(px.Entities))
+	}
+	for _, m := range px.Messages {
+		if m.Type == "Inform" {
+			return
+		}
+	}
+	t.Error("expected at least one Inform UIMessage")
+}
+
 // entityValues extracts all entity values from the parsed response.
 func entityValues(px parsedXML) []string {
 	out := make([]string, len(px.Entities))
