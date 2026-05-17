@@ -136,7 +136,7 @@ type xmlRespEntities struct {
 
 type xmlRespEntity struct {
 	Type               string              `xml:"Type,attr"`
-	Value              string              `xml:"Value"`
+	Value              xmlText             `xml:"Value"`
 	Weight             int                 `xml:"Weight"`
 	LinkLabel          string              `xml:"LinkLabel,omitempty"`
 	DisplayInformation *xmlDisplayInfo     `xml:"DisplayInformation,omitempty"`
@@ -155,6 +155,10 @@ type xmlLabel struct {
 	Content string `xml:",innerxml"`
 }
 
+type xmlText struct {
+	Content string `xml:",innerxml"`
+}
+
 type xmlRespFields struct {
 	Fields []xmlRespField `xml:"Field"`
 }
@@ -163,7 +167,7 @@ type xmlRespField struct {
 	DisplayName  string `xml:"DisplayName,attr"`
 	MatchingRule string `xml:"MatchingRule,attr,omitempty"`
 	Name         string `xml:"Name,attr"`
-	Value        string `xml:",chardata"`
+	Value        string `xml:",innerxml"`
 }
 
 type xmlOverlays struct {
@@ -182,7 +186,7 @@ type xmlUIMessages struct {
 
 type xmlUIMessage struct {
 	MessageType string `xml:"MessageType,attr"`
-	Value       string `xml:",chardata"`
+	Value       string `xml:",innerxml"`
 }
 
 func (r *Response) ToXML() ([]byte, error) {
@@ -196,7 +200,7 @@ func (r *Response) ToXML() ([]byte, error) {
 	for _, e := range r.entities {
 		xe := xmlRespEntity{
 			Type:      e.Type,
-			Value:     e.Value,
+			Value:     xmlText{Content: escapeTextContent(e.Value)},
 			Weight:    e.Weight,
 			LinkLabel: e.LinkLabel,
 			IconURL:   e.IconURL,
@@ -221,7 +225,7 @@ func (r *Response) ToXML() ([]byte, error) {
 					Name:         p.Name,
 					DisplayName:  p.DisplayName,
 					MatchingRule: p.MatchingRule,
-					Value:        p.Value,
+					Value:        escapeTextContent(p.Value),
 				})
 			}
 			xe.AdditionalFields = rf
@@ -245,7 +249,7 @@ func (r *Response) ToXML() ([]byte, error) {
 	for _, m := range r.uiMessages {
 		out.Response.UIMessages.Messages = append(out.Response.UIMessages.Messages, xmlUIMessage{
 			MessageType: m.Type,
-			Value:       m.Message,
+			Value:       escapeTextContent(m.Message),
 		})
 	}
 
@@ -257,6 +261,10 @@ func (r *Response) ToXML() ([]byte, error) {
 }
 
 func escapeDisplayContent(s string) string {
+	return escapeTextContent(s)
+}
+
+func escapeTextContent(s string) string {
 	return strings.NewReplacer(
 		"&", "&amp;",
 		"<", "&lt;",

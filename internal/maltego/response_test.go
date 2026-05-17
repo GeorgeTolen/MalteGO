@@ -205,6 +205,23 @@ func TestEntityBuilder_AddDisplayInfo_EscapesAmpersand(t *testing.T) {
 	}
 }
 
+func TestResponse_TextNodesDoNotEscapeApostrophes(t *testing.T) {
+	r := NewResponse()
+	r.AddEntity(EntityPhrase, "hasn't").
+		AddProperty("note", "Note", MatchingRuleLoose, "doesn't")
+	r.Inform("wasn't seen")
+	data, _ := r.ToXML()
+	s := string(data)
+	if strings.Contains(s, "&#39;") || strings.Contains(s, "&apos;") {
+		t.Errorf("text nodes should keep apostrophes like Python maltego-trx output, got:\n%s", s)
+	}
+	for _, want := range []string{"<Value>hasn't</Value>", ">doesn't</Field>", ">wasn't seen</UIMessage>"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("expected %q in XML, got:\n%s", want, s)
+		}
+	}
+}
+
 func TestEntityBuilder_NoProperties_OmitsAdditionalFields(t *testing.T) {
 	r := NewResponse()
 	r.AddEntity(EntityIPv4Address, "1.2.3.4")
