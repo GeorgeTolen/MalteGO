@@ -63,10 +63,12 @@ type RIOTResponse struct {
 	TrustLevel  string `json:"trust_level"`
 }
 
-// SimilarityResponse — /v1/experimental/gnoise/similar/{ip}
+// SimilarityResponse — /v3/similarity/ips/{ip}
 type SimilarityResponse struct {
-	IP      string        `json:"ip"`
-	Similar []SimilarIP   `json:"similar_ips"`
+	IP      string      `json:"ip"`
+	Similar []SimilarIP `json:"similar_ips"`
+	Total   int         `json:"total"`
+	Message string      `json:"message"`
 }
 
 type SimilarIP struct {
@@ -74,6 +76,7 @@ type SimilarIP struct {
 	Score      float64  `json:"score"`
 	Actor      string   `json:"actor"`
 	Similarity []string `json:"features"`
+	Tags       []string `json:"tags"`
 }
 
 // GNQLResponse — /v2/experimental/gnql

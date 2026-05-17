@@ -14,7 +14,6 @@ const (
 	baseURL  = "https://api.greynoise.io"
 	apiV2    = baseURL + "/v2"
 	apiV3    = baseURL + "/v3"
-	apiV1Exp = baseURL + "/v1/experimental"
 	apiV2Exp = baseURL + "/v2/experimental"
 )
 
@@ -60,11 +59,11 @@ func (c *httpClient) get(ctx context.Context, rawURL string, out interface{}) er
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("not found: %s", rawURL)
-	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("api error %d: %s", resp.StatusCode, string(body))
+		if len(body) > 0 {
+			return fmt.Errorf("api error %d: %s", resp.StatusCode, string(body))
+		}
+		return fmt.Errorf("api error %d: %s", resp.StatusCode, rawURL)
 	}
 
 	if err := json.Unmarshal(body, out); err != nil {
@@ -99,7 +98,7 @@ func (c *httpClient) RIOT(ctx context.Context, ip string) (*RIOTResponse, error)
 
 func (c *httpClient) SimilarIPs(ctx context.Context, ip string) (*SimilarityResponse, error) {
 	var r SimilarityResponse
-	if err := c.get(ctx, fmt.Sprintf("%s/gnoise/similar/%s", apiV1Exp, ip), &r); err != nil {
+	if err := c.get(ctx, fmt.Sprintf("%s/similarity/ips/%s", apiV3, ip), &r); err != nil {
 		return nil, err
 	}
 	return &r, nil
