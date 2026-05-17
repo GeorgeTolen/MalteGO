@@ -564,31 +564,44 @@ func TestRIOTIPLookup_KnownService(t *testing.T) {
 
 	px := runTransform(t, &RIOTIPLookup{}, mock, makeReq("8.8.8.8"))
 
-	if len(px.Entities) != 1 {
-		t.Fatalf("expected 1 entity, got %d", len(px.Entities))
+	if len(px.Entities) != 4 {
+		t.Fatalf("expected 4 entities, got %d", len(px.Entities))
 	}
 	e := px.Entities[0]
-	if e.Properties["name"] != "Google Public DNS" {
-		t.Errorf("name = %q, want Google Public DNS", e.Properties["name"])
+	if e.Properties["gn_last_updated"] != "2024-01-01" {
+		t.Errorf("gn_last_updated = %q, want 2024-01-01", e.Properties["gn_last_updated"])
 	}
-	if e.Properties["riot"] != "true" {
-		t.Errorf("riot = %q, want true", e.Properties["riot"])
+	if px.Entities[1].Type != "greynoise.noise" || px.Entities[1].Value != "Common Business Service Detected" {
+		t.Errorf("noise entity = %#v", px.Entities[1])
 	}
-	if e.Properties["trust_level"] != "1" {
-		t.Errorf("trust_level = %q, want 1", e.Properties["trust_level"])
+	if px.Entities[3].Type != "greynoise.classification" || px.Entities[3].Value != "RIOT - Reasonably Ignore" {
+		t.Errorf("classification entity = %#v", px.Entities[3])
 	}
 }
 
 func TestRIOTIPLookup_UnknownIP_ReturnsInform(t *testing.T) {
 	mock := riotMock(&greynoise.RIOTResponse{IP: "1.2.3.4", Riot: false}, nil)
 	px := runTransform(t, &RIOTIPLookup{}, mock, makeReq("1.2.3.4"))
-	assertInformNoEntities(t, px)
+	if len(px.Entities) != 2 {
+		t.Fatalf("expected input and not-business entities, got %d", len(px.Entities))
+	}
+	if px.Entities[1].Type != "greynoise.noise" || px.Entities[1].Value != "Not a Common Business Service" {
+		t.Errorf("not-business entity = %#v", px.Entities[1])
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 func TestRIOTIPLookup_APIError_ReturnsFatalError(t *testing.T) {
 	mock := riotMock(nil, errors.New("riot api down"))
 	px := runTransform(t, &RIOTIPLookup{}, mock, makeReq("1.2.3.4"))
-	assertFatalError(t, px)
+	if len(px.Entities) != 1 {
+		t.Fatalf("expected copied input entity, got %d", len(px.Entities))
+	}
+	if len(px.Messages) != 1 || px.Messages[0].Type != maltego.MsgTypeInform {
+		t.Errorf("expected Inform UIMessage, got %#v", px.Messages)
+	}
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
