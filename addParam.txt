@@ -1,0 +1,17 @@
+
+Поле	             Значение
+Display name	     GreyNoise Community IP Lookup
+Transform ID	     greynoise.community.ip.lookup
+Author	             Tolen
+Input entity type	 maltego.IPv4Address
+Transform set	     MalteGO GreyNoise
+
+Command line:
+
+Поле	             Значение
+Command	             C:\Users\oneba\golang\MalteGO\maltego-server.exe
+Parameters	         local GreyNoiseCommunityIPLookup
+Working directory	 C:\Users\oneba\golang\MalteGO
+
+сейчас можно проверить только 1 трансформ
+остальные 12 не работают без апи грейнойса

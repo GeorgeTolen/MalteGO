@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/greynoise-maltego/maltego-go/internal/config"
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
@@ -57,25 +59,56 @@ func newRegistry() *transforms.Registry {
 }
 
 func runLocal(cfg *config.Config, registry *transforms.Registry, args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: %s local <TransformName> <Value>", os.Args[0])
+	if len(args) < 1 {
+		return fmt.Errorf("usage: %s local <TransformName>", os.Args[0])
 	}
-
 	name := args[0]
-	value := args[1]
-	if cfg.GreyNoiseAPIKey == "" {
-		return fmt.Errorf("GreyNoise API key not configured. Set GREYNOISE_API_KEY before running local transforms.")
+
+	// Read XML from stdin with a 3-second timeout.
+	// Maltego sends XML via stdin but on Windows may not close it,
+	// so we use a goroutine + timer to avoid blocking forever.
+	stdinCh := make(chan []byte, 1)
+	go func() {
+		data, _ := io.ReadAll(os.Stdin)
+		stdinCh <- data
+	}()
+
+	var xmlData []byte
+	select {
+	case xmlData = <-stdinCh:
+	case <-time.After(3 * time.Second):
+		// stdin not closed — fall through with empty data
 	}
 
-	req := &maltego.Request{
-		Value:      value,
-		EntityType: localInputType(name),
-		Properties: map[string]string{},
-		Settings:   map[string]string{"GNApiKey": cfg.GreyNoiseAPIKey},
-		SoftLimit:  12,
-		HardLimit:  12,
+	var req *maltego.Request
+	if len(xmlData) > 10 {
+		parsed, err := maltego.ParseRequest(xmlData)
+		if err != nil {
+			return fmt.Errorf("parse request: %w", err)
+		}
+		req = parsed
+	} else {
+		// Fallback: value from second arg (for manual/CLI testing).
+		value := ""
+		if len(args) > 1 {
+			value = args[1]
+		}
+		req = &maltego.Request{
+			Value:      value,
+			EntityType: localInputType(name),
+			Properties: map[string]string{},
+			Settings:   map[string]string{},
+			SoftLimit:  12,
+			HardLimit:  12,
+		}
 	}
-	client := greynoise.NewClient(cfg.GreyNoiseAPIKey, cfg.RequestTimeout)
+
+	// API key: prefer from request TransformFields, fallback to config.
+	if req.APIKey(cfg.GreyNoiseAPIKey) == "" {
+		return fmt.Errorf("GreyNoise API key not configured")
+	}
+
+	client := greynoise.NewClient(req.APIKey(cfg.GreyNoiseAPIKey), cfg.RequestTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
 	defer cancel()
 
@@ -83,11 +116,11 @@ func runLocal(cfg *config.Config, registry *transforms.Registry, args []string) 
 	if err != nil {
 		return err
 	}
-	xmlData, err := resp.ToXML()
+	out, err := resp.ToXML()
 	if err != nil {
 		return err
 	}
-	fmt.Print(string(xmlData))
+	fmt.Print(string(out))
 	return nil
 }
 
