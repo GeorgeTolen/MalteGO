@@ -43,9 +43,8 @@ func main() {
 	r.Static("/static", "./web/static")
 	r.StaticFile("/", "./web/index.html")
 
-	// Proxy /api/* to transform service
+	// Proxy /api/* to transform service (keep full path including /api/)
 	r.Any("/api/*path", func(c *gin.Context) {
-		c.Request.URL.Path = c.Param("path")
 		proxy.ServeHTTP(c.Writer, c.Request)
 	})
 
