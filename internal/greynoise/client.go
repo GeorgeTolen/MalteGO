@@ -85,19 +85,19 @@ func (c *httpClient) CommunityIP(ctx context.Context, ip string) (*CommunityResp
 }
 
 func (c *httpClient) ContextIP(ctx context.Context, ip string) (*ContextResponse, error) {
-	var r ContextResponse
-	if err := c.get(ctx, fmt.Sprintf("%s/v2/noise/context/%s", c.baseURL, ip), &r); err != nil {
+	var v3 V3IPResponse
+	if err := c.get(ctx, fmt.Sprintf("%s/v3/ip/%s", c.baseURL, ip), &v3); err != nil {
 		return nil, err
 	}
-	return &r, nil
+	return v3.ToContextResponse(), nil
 }
 
 func (c *httpClient) RIOT(ctx context.Context, ip string) (*RIOTResponse, error) {
-	var r RIOTResponse
-	if err := c.get(ctx, fmt.Sprintf("%s/v2/riot/%s", c.baseURL, ip), &r); err != nil {
+	var v3 V3IPResponse
+	if err := c.get(ctx, fmt.Sprintf("%s/v3/ip/%s", c.baseURL, ip), &v3); err != nil {
 		return nil, err
 	}
-	return &r, nil
+	return v3.ToRIOTResponse(), nil
 }
 
 func (c *httpClient) SimilarIPs(ctx context.Context, ip string, minScore, limit int) (*SimilarityResponse, error) {
@@ -108,7 +108,7 @@ func (c *httpClient) SimilarIPs(ctx context.Context, ip string, minScore, limit 
 		limit = 50
 	}
 	var r SimilarityResponse
-	u := fmt.Sprintf("%s/v1/experimental/gnoise/similar/%s?min_score=%d&limit=%d", c.baseURL, ip, minScore, limit)
+	u := fmt.Sprintf("%s/v3/similarity/ips/%s?min_score=%d&limit=%d", c.baseURL, ip, minScore, limit)
 	if err := c.get(ctx, u, &r); err != nil {
 		return nil, err
 	}

@@ -1,72 +1,114 @@
 # MalteGO
 
-Go-реализация [greynoise-maltego](https://github.com/GreyNoise-Intelligence/greynoise-maltego) — сервер трансформов для Maltego, который подтягивает данные из GreyNoise API.
+Go port of [greynoise-maltego](https://github.com/GreyNoise-Intelligence/greynoise-maltego) — a threat intelligence graph tool powered by the GreyNoise API.
 
-Если коротко: берёшь IP в Maltego, запускаешь трансформ — и граф разворачивается в акторов, CVE, похожие адреса, организации и всё что с этим IP связано. Мы переписали оригинальный Python/Flask сервис на Go с Gin.
-
----
-
-## Что внутри
-
-**13 трансформов в 4 группах:**
-
-**Community** (бесплатно):
-- `GreyNoiseCommunityIPLookup` — базовая проверка IP: шумит ли, известный ли сервис, malicious/benign
-
-**Контекст по IP** (Enterprise):
-- `GreyNoiseNoiseIPLookupAllDetails` — полный портрет: гео, ASN, теги, CVE, порты, актор
-- `GreyNoiseNoiseIPLookupGetActor` — кто стоит за этим IP
-- `GreyNoiseNoiseIPLookupGetCVEs` — какие уязвимости эксплуатирует
-- `GreyNoiseNoiseIPLookupGetOrg` — провайдер и организация
-- `GreyNoiseNoiseIPLookupGetPorts` — что сканирует
-- `GreyNoiseNoiseIPLookupGetTags` — теги активности
-- `GreyNoiseRIOTIPLookup` — это легитимный сервис? (убирает ложные алармы)
-
-**Пивотинг** (Enterprise):
-- `GreyNoiseNoiseIPSims` — похожие IP по поведению, строит всю инфраструктуру атакующего
-
-**GNQL-запросы** (Enterprise):
-- `GreyNoiseQueryByASN` — все вредоносные IP в сети
-- `GreyNoiseQueryByActor` — все IP группировки
-- `GreyNoiseQueryByCVE` — кто прямо сейчас эксплуатирует уязвимость
-- `GreyNoiseQueryByTag` — IP по типу активности
+Take an IP address, run a transform, and the graph expands into actors, CVEs, similar hosts, organizations, and everything connected to that IP. Originally a Python/Flask service, rewritten in Go with a microservices architecture and a built-in web UI — no Maltego Desktop required.
 
 ---
 
-## Стек
+## Architecture
+
+```
+Browser → UI Service :3000 → Transform Service :8080 → GreyNoise API Service :8090 → api.greynoise.io
+```
+
+Three independent services, each in its own Docker container:
+
+| Service | Port | Role |
+|---------|------|------|
+| `greynoise-api` | 8090 | Wraps GreyNoise API, holds the API key |
+| `transforms` | 8080 | 13 transform implementations + Maltego TRX protocol |
+| `ui` | 3000 | Web graph interface (Cytoscape.js) |
+
+---
+
+## Transforms
+
+**Community** (free key):
+- `GreyNoiseCommunityIPLookup` — noise/riot status, classification (malicious/benign/unknown), actor name
+
+**IP Context** (Enterprise):
+- `GreyNoiseNoiseIPLookupAllDetails` — full portrait: geo, ASN, tags, CVEs, ports, actor
+- `GreyNoiseNoiseIPLookupGetActor` — threat actor behind the IP
+- `GreyNoiseNoiseIPLookupGetCVEs` — vulnerabilities being exploited
+- `GreyNoiseNoiseIPLookupGetOrg` — organization and provider
+- `GreyNoiseNoiseIPLookupGetPorts` — open/scanning ports
+- `GreyNoiseNoiseIPLookupGetTags` — activity tags
+- `GreyNoiseRIOTIPLookup` — is this a known legitimate service? (reduces false positives)
+
+**Pivoting** (Enterprise):
+- `GreyNoiseNoiseIPSims` — similar IPs by behavior, maps attacker infrastructure
+
+**GNQL Queries** (Enterprise):
+- `GreyNoiseQueryByASN` — all malicious IPs in a network
+- `GreyNoiseQueryByActor` — all IPs attributed to a threat actor
+- `GreyNoiseQueryByCVE` — IPs actively exploiting a vulnerability right now
+- `GreyNoiseQueryByTag` — IPs by activity tag
+
+---
+
+## Stack
 
 - **Go 1.26** + **Gin**
-- Протокол **Maltego TRX** (XML request/response)
+- **Cytoscape.js** graph visualization
+- **Maltego TRX** XML protocol (backward compatible with Maltego Desktop)
+- **GreyNoise v3 API**
 - **Docker** + docker-compose
-- Конфигурация через `.env`
 
 ---
 
-## Быстрый старт
+## Quick Start
 
 ```bash
 git clone https://github.com/GeorgeTolen/MalteGO.git
 cd MalteGO
 
 cp .env.example .env
-# Вставь GREYNOISE_API_KEY в .env (бесплатный ключ: https://viz.greynoise.io/signup)
+# Add your GREYNOISE_API_KEY to .env
+# Free key: https://viz.greynoise.io/signup
 
-make docker-run   # сборка + запуск в Docker
-# или
-make run          # локально без Docker
+# Run all 3 services
+scripts\run-all.bat        # Windows
+# or
+docker-compose up --build  # Docker
 ```
 
-Сервис поднимается на `http://localhost:8080`.
+Open **http://localhost:3000** — type an IP, pick a transform, see the graph.
 
 ---
 
-## Проверить что работает
+## API Key
+
+| Tier | Price | Access |
+|------|-------|--------|
+| Community | Free | 1 transform, 50 requests/week |
+| Enterprise Trial | Free (14 days) | All 13 transforms |
+| Enterprise | Paid | All 13 transforms, unlimited |
+
+Get a free key: [viz.greynoise.io/signup](https://viz.greynoise.io/signup)
+
+---
+
+## Windows Scripts
+
+```
+scripts\run-all.bat      — start all 3 services locally
+scripts\run.bat          — start transform service only
+scripts\build.bat        — build all 3 binaries into bin\
+scripts\test.bat         — run tests
+scripts\docker-run.bat   — docker-compose up --build
+scripts\docker-stop.bat  — docker-compose down
+```
+
+---
+
+## API
+
+Full endpoint reference and Postman examples: [API.md](API.md)
+
+Quick test (Community transform, no Enterprise key needed):
 
 ```bash
-# Список трансформов
-curl http://localhost:8080/
-
-# Community lookup (работает без Enterprise-ключа)
 curl -X POST http://localhost:8080/run/GreyNoiseCommunityIPLookup \
   -H "Content-Type: text/xml" \
   -d '<MaltegoMessage><MaltegoTransformRequestMessage>
@@ -80,31 +122,10 @@ curl -X POST http://localhost:8080/run/GreyNoiseCommunityIPLookup \
   </MaltegoTransformRequestMessage></MaltegoMessage>'
 ```
 
----
+Web UI JSON API (used by the graph interface):
 
-## Make-команды
-
+```bash
+curl -X POST http://localhost:8080/api/run/GreyNoiseCommunityIPLookup \
+  -H "Content-Type: application/json" \
+  -d '{"value": "8.8.8.8"}'
 ```
-make run            # запустить локально
-make docker-run     # собрать образ + запустить в Docker
-make test           # тесты
-make test-cover     # тесты с отчётом покрытия
-make build          # собрать бинарник
-make help           # все команды
-```
-
----
-
-## API-ключ GreyNoise
-
-| Тир | Цена | Что доступно |
-|-----|------|-------------|
-| Community | Бесплатно | 1 трансформ, 50 запросов/неделю |
-| Enterprise Trial | Бесплатно 14 дней | Все 13 трансформов |
-| Enterprise | Платно | Все 13 трансформов, без лимита |
-
-Получить ключ: [viz.greynoise.io/signup](https://viz.greynoise.io/signup)
-
-Ключ можно передавать двумя способами — через `.env` или прямо в теле каждого запроса в `TransformFields`. Второй способ удобен при подключении из Maltego Desktop.
-
-Подробная документация по всем эндпоинтам и примеры для Postman — в [API.md](API.md).
