@@ -10,10 +10,11 @@ import (
 )
 
 type Config struct {
-	Port                  string
-	GinMode               string
-	GreyNoiseAPIKey       string
-	RequestTimeout        time.Duration
+	Port              string
+	GinMode           string
+	GreyNoiseAPIKey   string
+	GreyNoiseAPIURL   string // URL of greynoise-api microservice
+	RequestTimeout    time.Duration
 }
 
 func Load() (*Config, error) {
@@ -37,14 +38,17 @@ func Load() (*Config, error) {
 	}
 
 	apiKey := os.Getenv("GREYNOISE_API_KEY")
-	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "[warn] GREYNOISE_API_KEY not set; transforms will use key from request TransformFields")
+	apiURL := os.Getenv("GREYNOISE_API_URL")
+
+	if apiURL == "" && apiKey == "" {
+		fmt.Fprintln(os.Stderr, "[warn] Neither GREYNOISE_API_KEY nor GREYNOISE_API_URL set")
 	}
 
 	return &Config{
-		Port:           port,
-		GinMode:        ginMode,
+		Port:            port,
+		GinMode:         ginMode,
 		GreyNoiseAPIKey: apiKey,
-		RequestTimeout: time.Duration(timeout) * time.Second,
+		GreyNoiseAPIURL: apiURL,
+		RequestTimeout:  time.Duration(timeout) * time.Second,
 	}, nil
 }

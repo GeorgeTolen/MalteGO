@@ -23,7 +23,15 @@ type Server struct {
 }
 
 func New(cfg *config.Config, registry *transforms.Registry) *Server {
-	return newWithClientFactory(cfg, registry, greynoise.NewClient)
+	factory := greynoise.NewClient
+	// If GREYNOISE_API_URL is set, route through the greynoise-api microservice.
+	if cfg.GreyNoiseAPIURL != "" {
+		serviceURL := cfg.GreyNoiseAPIURL
+		factory = func(_ string, timeout time.Duration) greynoise.Client {
+			return greynoise.NewServiceClient(serviceURL, timeout)
+		}
+	}
+	return newWithClientFactory(cfg, registry, factory)
 }
 
 func newWithClientFactory(cfg *config.Config, registry *transforms.Registry, factory func(string, time.Duration) greynoise.Client) *Server {
@@ -43,21 +51,79 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) setupRoutes() {
+	// Maltego TRX XML endpoints (backward compatible)
 	s.router.GET("/", s.handleIndex)
 	s.router.POST("/run/:name", s.handleTransform)
 	s.router.POST("/run/:name/", s.handleTransform)
+
+	// JSON API for Web UI
+	s.router.GET("/api/transforms", s.handleAPITransforms)
+	s.router.POST("/api/run/:name", s.handleAPIRun)
 }
 
 func (s *Server) handleIndex(c *gin.Context) {
 	names := s.registry.Names()
 	sort.Strings(names)
 	c.JSON(http.StatusOK, gin.H{
-		"service":    "MalteGO — GreyNoise Maltego Transform Server",
+		"service":    "MalteGO — GreyNoise Transform Service",
 		"transforms": names,
 		"count":      len(names),
 	})
 }
 
+// handleAPITransforms returns list of transforms as JSON for the Web UI.
+func (s *Server) handleAPITransforms(c *gin.Context) {
+	names := s.registry.Names()
+	sort.Strings(names)
+	c.JSON(http.StatusOK, gin.H{"transforms": names})
+}
+
+// handleAPIRun runs a transform and returns JSON (used by Web UI).
+func (s *Server) handleAPIRun(c *gin.Context) {
+	name := c.Param("name")
+
+	if _, ok := s.registry.Get(name); !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("transform %q not found", name)})
+		return
+	}
+
+	var body struct {
+		Value      string `json:"value"`
+		EntityType string `json:"entity_type"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body"})
+		return
+	}
+	if strings.TrimSpace(body.Value) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "value is required"})
+		return
+	}
+	if body.EntityType == "" {
+		body.EntityType = maltego.EntityIPv4Address
+	}
+
+	req := &maltego.Request{
+		Value:      body.Value,
+		EntityType: body.EntityType,
+		Properties: map[string]string{},
+		Settings:   map[string]string{},
+		SoftLimit:  12,
+		HardLimit:  12,
+	}
+
+	client := s.newClient(s.cfg.GreyNoiseAPIKey, s.cfg.RequestTimeout)
+
+	resp, err := s.registry.Run(c.Request.Context(), name, client, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp.ToJSON())
+}
+
+// handleTransform handles Maltego TRX XML requests.
 func (s *Server) handleTransform(c *gin.Context) {
 	name := c.Param("name")
 
@@ -83,8 +149,8 @@ func (s *Server) handleTransform(c *gin.Context) {
 	}
 
 	apiKey := req.APIKey(s.cfg.GreyNoiseAPIKey)
-	if apiKey == "" {
-		xmlErr, _ := maltego.ErrorResponse("GreyNoise API key not configured. Set GREYNOISE_API_KEY or pass greynoise.api.key in TransformFields.")
+	if apiKey == "" && s.cfg.GreyNoiseAPIURL == "" {
+		xmlErr, _ := maltego.ErrorResponse("GreyNoise API key not configured. Set GREYNOISE_API_KEY or GREYNOISE_API_URL.")
 		c.Data(http.StatusOK, "text/xml; charset=utf-8", xmlErr)
 		return
 	}

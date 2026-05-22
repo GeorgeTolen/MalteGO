@@ -1,15 +1,54 @@
 services:
-  maltego-server:
-    build: .
+  greynoise-api:
+    build:
+      context: .
+      dockerfile: docker/greynoise-api.Dockerfile
     ports:
-      - "${PORT:-8080}:8080"
+      - "8090:8090"
     env_file:
       - .env
     environment:
       - GIN_MODE=release
+      - GREYNOISE_API_PORT=8090
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  transforms:
+    build:
+      context: .
+      dockerfile: docker/transforms.Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - GIN_MODE=release
+      - GREYNOISE_API_URL=http://greynoise-api:8090
+    depends_on:
+      greynoise-api:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+  ui:
+    build:
+      context: .
+      dockerfile: docker/ui.Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - GIN_MODE=release
+      - TRANSFORM_SERVICE_URL=http://transforms:8080
+      - UI_PORT=3000
+    depends_on:
+      transforms:
+        condition: service_healthy
+    restart: unless-stopped

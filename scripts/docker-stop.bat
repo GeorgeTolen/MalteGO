@@ -1,0 +1,3 @@
+@echo off
+echo [MalteGO] Stopping Docker services...
+docker-compose down
