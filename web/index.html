@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MalteGO — GreyNoise Intelligence Graph</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+</head>
+<body>
+  <div id="sidebar">
+    <div id="logo">
+      <span class="logo-text">MalteGO</span>
+      <span class="logo-sub">GreyNoise Intelligence</span>
+    </div>
+
+    <div class="panel">
+      <label>Entity Value</label>
+      <input id="input-value" type="text" placeholder="8.8.8.8" autocomplete="off">
+
+      <label>Transform</label>
+      <select id="input-transform">
+        <option value="">Loading...</option>
+      </select>
+
+      <button id="btn-run">Run Transform</button>
+      <button id="btn-clear" class="secondary">Clear Graph</button>
+    </div>
+
+    <div class="panel" id="detail-panel" style="display:none">
+      <label>Selected Entity</label>
+      <div id="detail-type" class="tag"></div>
+      <div id="detail-value" class="detail-value"></div>
+      <div id="detail-props"></div>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <div id="graph-container">
+    <div id="cy"></div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -5,6 +5,50 @@ import (
 	"strings"
 )
 
+// JSONEntity is the JSON-serialisable form of an entity (used by Web UI API).
+type JSONEntity struct {
+	Type       string            `json:"type"`
+	Value      string            `json:"value"`
+	Properties map[string]string `json:"properties,omitempty"`
+	IconURL    string            `json:"icon_url,omitempty"`
+}
+
+// JSONUIMessage is the JSON-serialisable form of a UI message.
+type JSONUIMessage struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+// JSONResponse is the JSON response returned by the /api/run/:name endpoint.
+type JSONResponse struct {
+	Entities []JSONEntity    `json:"entities"`
+	Messages []JSONUIMessage `json:"messages"`
+}
+
+// ToJSON converts the response to a JSON-friendly struct for the Web UI.
+func (r *Response) ToJSON() JSONResponse {
+	out := JSONResponse{
+		Entities: make([]JSONEntity, 0, len(r.entities)),
+		Messages: make([]JSONUIMessage, 0, len(r.uiMessages)),
+	}
+	for _, e := range r.entities {
+		props := make(map[string]string, len(e.Properties))
+		for _, p := range e.Properties {
+			props[p.Name] = p.Value
+		}
+		out.Entities = append(out.Entities, JSONEntity{
+			Type:       e.Type,
+			Value:      e.Value,
+			Properties: props,
+			IconURL:    e.IconURL,
+		})
+	}
+	for _, m := range r.uiMessages {
+		out.Messages = append(out.Messages, JSONUIMessage{Type: m.Type, Message: m.Message})
+	}
+	return out
+}
+
 // --- Response builder ---
 
 type Response struct {
