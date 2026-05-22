@@ -12,6 +12,7 @@ import (
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
 	"github.com/greynoise-maltego/maltego-go/internal/server"
+	"github.com/greynoise-maltego/maltego-go/internal/storage"
 	"github.com/greynoise-maltego/maltego-go/internal/transforms"
 )
 
@@ -32,7 +33,17 @@ func main() {
 		return
 	}
 
-	srv := server.New(cfg, registry)
+	var store storage.Store
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		s, err := storage.New(dsn)
+		if err != nil {
+			log.Fatalf("storage: %v", err)
+		}
+		defer s.Close()
+		store = s
+	}
+
+	srv := server.New(cfg, registry, store)
 
 	log.Printf("MalteGO starting on port %s", cfg.Port)
 	if err := srv.Run(); err != nil {

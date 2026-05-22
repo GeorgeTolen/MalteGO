@@ -32,7 +32,7 @@ func main() {
 		return
 	}
 
-	srv := server.New(cfg, registry)
+	srv := server.New(cfg, registry, nil)
 
 	log.Printf("MalteGO starting on port %s", cfg.Port)
 	if err := srv.Run(); err != nil {
