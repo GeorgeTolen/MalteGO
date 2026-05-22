@@ -224,12 +224,96 @@ function setStatus(msg, cls) {
   el.className    = cls || '';
 }
 
+// ── Save / Load graphs ───────────────────────────────────────────────────────
+
+async function loadSavedGraphs() {
+  try {
+    const res = await fetch('/api/graphs');
+    const data = await res.json();
+    renderSavedGraphs(data.graphs || []);
+  } catch (_) {}
+}
+
+function renderSavedGraphs(graphs) {
+  const list = document.getElementById('saved-graphs-list');
+  list.innerHTML = '';
+  if (!graphs.length) {
+    list.innerHTML = '<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px">No saved graphs</div>';
+    return;
+  }
+  graphs.forEach(g => {
+    const item = document.createElement('div');
+    item.className = 'graph-item';
+    const date = new Date(g.updated_at).toLocaleDateString();
+    item.innerHTML = `
+      <span class="graph-item-name" title="${g.name}">${g.name}</span>
+      <span class="graph-item-date">${date}</span>
+      <button class="graph-item-del" title="Delete" data-id="${g.id}">×</button>
+    `;
+    item.querySelector('.graph-item-name').addEventListener('click', () => openGraph(g.id));
+    item.querySelector('.graph-item-del').addEventListener('click', e => {
+      e.stopPropagation();
+      deleteGraph(g.id);
+    });
+    list.appendChild(item);
+  });
+}
+
+async function saveGraph() {
+  if (!cy.elements().length) {
+    setStatus('Nothing to save — graph is empty', 'error');
+    return;
+  }
+  const nameInput = document.getElementById('graph-name');
+  const name = nameInput.value.trim() || 'Graph ' + new Date().toLocaleString();
+  const data = JSON.stringify(cy.json());
+
+  try {
+    const res = await fetch('/api/graphs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, data }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    nameInput.value = '';
+    setStatus('Graph saved: ' + name, 'ok');
+    loadSavedGraphs();
+  } catch (err) {
+    setStatus('Save failed: ' + err.message, 'error');
+  }
+}
+
+async function openGraph(id) {
+  try {
+    const res = await fetch('/api/graphs/' + id);
+    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    const g = await res.json();
+    cy.elements().remove();
+    cy.json(JSON.parse(g.data));
+    cy.layout({ name: 'preset' }).run();
+    setStatus('Loaded: ' + g.name, 'ok');
+  } catch (err) {
+    setStatus('Load failed: ' + err.message, 'error');
+  }
+}
+
+async function deleteGraph(id) {
+  try {
+    await fetch('/api/graphs/' + id, { method: 'DELETE' });
+    loadSavedGraphs();
+  } catch (err) {
+    setStatus('Delete failed: ' + err.message, 'error');
+  }
+}
+
 // ── Wire up buttons ─────────────────────────────────────────────────────────
 document.getElementById('btn-run').addEventListener('click', runTransform);
 document.getElementById('btn-clear').addEventListener('click', clearGraph);
+document.getElementById('btn-save').addEventListener('click', saveGraph);
 document.getElementById('input-value').addEventListener('keydown', e => {
   if (e.key === 'Enter') runTransform();
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 loadTransforms();
+loadSavedGraphs();

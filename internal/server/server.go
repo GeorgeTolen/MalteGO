@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/greynoise-maltego/maltego-go/internal/config"
 	"github.com/greynoise-maltego/maltego-go/internal/greynoise"
 	"github.com/greynoise-maltego/maltego-go/internal/maltego"
+	"github.com/greynoise-maltego/maltego-go/internal/storage"
 	"github.com/greynoise-maltego/maltego-go/internal/transforms"
 )
 
@@ -20,28 +22,28 @@ type Server struct {
 	registry  *transforms.Registry
 	router    *gin.Engine
 	newClient func(apiKey string, timeout time.Duration) greynoise.Client
+	store     storage.Store
 }
 
-func New(cfg *config.Config, registry *transforms.Registry) *Server {
+func New(cfg *config.Config, registry *transforms.Registry, store storage.Store) *Server {
 	factory := greynoise.NewClient
-	// If GREYNOISE_API_URL is set, route through the greynoise-api microservice.
 	if cfg.GreyNoiseAPIURL != "" {
 		serviceURL := cfg.GreyNoiseAPIURL
 		factory = func(_ string, timeout time.Duration) greynoise.Client {
 			return greynoise.NewServiceClient(serviceURL, timeout)
 		}
 	}
-	return newWithClientFactory(cfg, registry, factory)
+	return newWithClientFactory(cfg, registry, factory, store)
 }
 
-func newWithClientFactory(cfg *config.Config, registry *transforms.Registry, factory func(string, time.Duration) greynoise.Client) *Server {
+func newWithClientFactory(cfg *config.Config, registry *transforms.Registry, factory func(string, time.Duration) greynoise.Client, store storage.Store) *Server {
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
-	s := &Server{cfg: cfg, registry: registry, router: r, newClient: factory}
+	s := &Server{cfg: cfg, registry: registry, router: r, newClient: factory, store: store}
 	s.setupRoutes()
 	return s
 }
@@ -59,6 +61,15 @@ func (s *Server) setupRoutes() {
 	// JSON API for Web UI
 	s.router.GET("/api/transforms", s.handleAPITransforms)
 	s.router.POST("/api/run/:name", s.handleAPIRun)
+
+	// Graph persistence API
+	if s.store != nil {
+		s.router.GET("/api/graphs", s.handleListGraphs)
+		s.router.POST("/api/graphs", s.handleSaveGraph)
+		s.router.GET("/api/graphs/:id", s.handleGetGraph)
+		s.router.PUT("/api/graphs/:id", s.handleUpdateGraph)
+		s.router.DELETE("/api/graphs/:id", s.handleDeleteGraph)
+	}
 }
 
 func (s *Server) handleIndex(c *gin.Context) {
@@ -121,6 +132,94 @@ func (s *Server) handleAPIRun(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp.ToJSON())
+}
+
+// ── Graph persistence handlers ───────────────────────────────────────────────
+
+func (s *Server) handleListGraphs(c *gin.Context) {
+	graphs, err := s.store.ListGraphs()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if graphs == nil {
+		graphs = []storage.Graph{}
+	}
+	c.JSON(http.StatusOK, gin.H{"graphs": graphs})
+}
+
+func (s *Server) handleSaveGraph(c *gin.Context) {
+	var body struct {
+		Name string `json:"name" binding:"required"`
+		Data string `json:"data" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name and data are required"})
+		return
+	}
+	g, err := s.store.SaveGraph(body.Name, body.Data)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, g)
+}
+
+func (s *Server) handleGetGraph(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	g, err := s.store.GetGraph(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if g == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "graph not found"})
+		return
+	}
+	c.JSON(http.StatusOK, g)
+}
+
+func (s *Server) handleUpdateGraph(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var body struct {
+		Name string `json:"name" binding:"required"`
+		Data string `json:"data" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name and data are required"})
+		return
+	}
+	g, err := s.store.UpdateGraph(id, body.Name, body.Data)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if g == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "graph not found"})
+		return
+	}
+	c.JSON(http.StatusOK, g)
+}
+
+func (s *Server) handleDeleteGraph(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := s.store.DeleteGraph(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": id})
 }
 
 // handleTransform handles Maltego TRX XML requests.

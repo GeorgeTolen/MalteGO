@@ -5,3 +5,4 @@ coverage.out
 coverage.html
 local_*.xml
 local_*.txt
+bin/

@@ -57,7 +57,7 @@ func buildServer(cfg *config.Config) *Server {
 			},
 		}
 	}
-	return newWithClientFactory(cfg, reg, factory)
+	return newWithClientFactory(cfg, reg, factory, nil)
 }
 
 // maltegoXML builds a minimal valid Maltego XML request body.
