@@ -1,0 +1,3 @@
+@echo off
+echo [MalteGO] Building and starting Docker services...
+docker-compose up --build

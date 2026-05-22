@@ -1,0 +1,3 @@
+@echo off
+echo [MalteGO] Starting Transform Service on port 8080...
+go run .\cmd\transforms
