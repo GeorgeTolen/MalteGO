@@ -15,6 +15,15 @@
     </div>
 
     <div class="panel">
+      <label>GreyNoise API Key</label>
+      <div class="save-row">
+        <input id="input-apikey" type="password" placeholder="Paste your API key…" autocomplete="off">
+        <button id="btn-apikey-save" class="secondary">Set</button>
+      </div>
+      <div id="apikey-status"></div>
+    </div>
+
+    <div class="panel">
       <label>Entity Value</label>
       <input id="input-value" type="text" placeholder="8.8.8.8" autocomplete="off">
 
@@ -24,7 +33,11 @@
       </select>
 
       <button id="btn-run">Run Transform</button>
-      <button id="btn-clear" class="secondary">Clear Graph</button>
+      <div class="btn-row">
+        <button id="btn-clear" class="secondary">Clear</button>
+        <button id="btn-export-png" class="secondary">PNG</button>
+        <button id="btn-export-json" class="secondary">JSON</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -34,6 +47,7 @@
         <button id="btn-save" class="secondary">Save</button>
       </div>
       <div id="saved-graphs-list"></div>
+      <button id="btn-load-more" class="secondary" style="display:none;font-size:11px;padding:5px">Load more…</button>
     </div>
 
     <div class="panel" id="detail-panel" style="display:none">

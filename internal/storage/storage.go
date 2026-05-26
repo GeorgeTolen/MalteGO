@@ -19,7 +19,8 @@ type Graph struct {
 type Store interface {
 	SaveGraph(name, data string) (*Graph, error)
 	UpdateGraph(id int64, name, data string) (*Graph, error)
-	ListGraphs() ([]Graph, error)
+	RenameGraph(id int64, name string) (*Graph, error)
+	ListGraphs(limit, offset int) ([]Graph, int, error)
 	GetGraph(id int64) (*Graph, error)
 	DeleteGraph(id int64) error
 	Close()
@@ -86,12 +87,19 @@ func (s *pgStore) UpdateGraph(id int64, name, data string) (*Graph, error) {
 	return &g, nil
 }
 
-func (s *pgStore) ListGraphs() ([]Graph, error) {
+func (s *pgStore) ListGraphs(limit, offset int) ([]Graph, int, error) {
 	ctx := context.Background()
+
+	var total int
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM graphs`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count graphs: %w", err)
+	}
+
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, created_at, updated_at FROM graphs ORDER BY updated_at DESC`)
+		`SELECT id, name, created_at, updated_at FROM graphs ORDER BY updated_at DESC LIMIT $1 OFFSET $2`,
+		limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("list graphs: %w", err)
+		return nil, 0, fmt.Errorf("list graphs: %w", err)
 	}
 	defer rows.Close()
 
@@ -99,11 +107,25 @@ func (s *pgStore) ListGraphs() ([]Graph, error) {
 	for rows.Next() {
 		var g Graph
 		if err := rows.Scan(&g.ID, &g.Name, &g.CreatedAt, &g.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("scan graph: %w", err)
+			return nil, 0, fmt.Errorf("scan graph: %w", err)
 		}
 		graphs = append(graphs, g)
 	}
-	return graphs, rows.Err()
+	return graphs, total, rows.Err()
+}
+
+func (s *pgStore) RenameGraph(id int64, name string) (*Graph, error) {
+	ctx := context.Background()
+	var g Graph
+	err := s.pool.QueryRow(ctx,
+		`UPDATE graphs SET name=$1, updated_at=NOW() WHERE id=$2
+		 RETURNING id, name, created_at, updated_at, data`,
+		name, id,
+	).Scan(&g.ID, &g.Name, &g.CreatedAt, &g.UpdatedAt, &g.Data)
+	if err != nil {
+		return nil, fmt.Errorf("rename graph: %w", err)
+	}
+	return &g, nil
 }
 
 func (s *pgStore) GetGraph(id int64) (*Graph, error) {
