@@ -361,7 +361,14 @@ async function saveGraph() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, data }),
     });
-    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    if (!res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      const msg = ct.includes('json')
+        ? (await res.json()).error
+        : await res.text();
+      if (res.status === 404) throw new Error('Database not available — start Docker first');
+      throw new Error(msg || res.statusText);
+    }
     nameInput.value = '';
     setStatus('Graph saved: ' + name, 'ok');
     loadSavedGraphs();
@@ -373,7 +380,10 @@ async function saveGraph() {
 async function openGraph(id) {
   try {
     const res = await fetch('/api/graphs/' + id);
-    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    if (!res.ok) {
+      if (res.status === 404) throw new Error('Graph not found');
+      throw new Error(res.statusText);
+    }
     const g = await res.json();
     cy.elements().remove();
     cy.json(JSON.parse(g.data));
