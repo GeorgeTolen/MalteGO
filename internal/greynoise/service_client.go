@@ -2,9 +2,7 @@ package greynoise
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -25,30 +23,11 @@ func NewServiceClient(serviceURL string, timeout time.Duration) Client {
 }
 
 func (c *serviceClient) get(ctx context.Context, path string, out interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("http get: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("service error %d: %s", resp.StatusCode, string(body))
-	}
-
-	if err := json.Unmarshal(body, out); err != nil {
-		return fmt.Errorf("json decode: %w", err)
-	}
-	return nil
+	return doGet(ctx, c.httpClient, req, out)
 }
 
 func (c *serviceClient) CommunityIP(ctx context.Context, ip string) (*CommunityResponse, error) {

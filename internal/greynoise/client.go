@@ -2,9 +2,7 @@ package greynoise
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -45,35 +43,13 @@ func NewClient(apiKey string, timeout time.Duration) Client {
 }
 
 func (c *httpClient) get(ctx context.Context, rawURL string, out interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("key", c.apiKey)
 	req.Header.Set("User-Agent", "MalteGO/1.0")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("http get: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read body: %w", err)
-	}
-
-	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("not found: %s", rawURL)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("api error %d: %s", resp.StatusCode, string(body))
-	}
-
-	if err := json.Unmarshal(body, out); err != nil {
-		return fmt.Errorf("json decode: %w", err)
-	}
-	return nil
+	return doGet(ctx, c.httpClient, req, out)
 }
 
 func (c *httpClient) CommunityIP(ctx context.Context, ip string) (*CommunityResponse, error) {
