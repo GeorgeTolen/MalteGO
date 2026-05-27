@@ -134,6 +134,13 @@ button:disabled { opacity: .4; cursor: default; }
 #status.error { color: var(--red); }
 #status.ok    { color: var(--green); }
 
+/* ── API key status ── */
+#apikey-status { font-size: 11px; color: var(--green); min-height: 14px; }
+
+/* ── Button row ── */
+.btn-row { display: flex; gap: 6px; }
+.btn-row button { flex: 1; padding: 7px 4px; font-size: 11px; }
+
 /* ── Save row ── */
 .save-row {
   display: flex;
@@ -171,16 +178,18 @@ button:disabled { opacity: .4; cursor: default; }
   white-space: nowrap;
 }
 .graph-item-date { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.graph-item-rename,
 .graph-item-del {
   background: none;
   border: none;
   color: var(--muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   padding: 0 2px;
   width: auto;
   line-height: 1;
 }
+.graph-item-rename:hover { color: var(--blue); }
 .graph-item-del:hover { color: var(--red); }
 
 /* ── Graph ── */

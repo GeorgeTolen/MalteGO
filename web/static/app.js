@@ -95,6 +95,30 @@ cy.on('tap', function(e) {
   }
 });
 
+// ── API Key ─────────────────────────────────────────────────────────────────
+function getAPIKey() {
+  return localStorage.getItem('greynoise_api_key') || '';
+}
+
+function initAPIKey() {
+  const saved = getAPIKey();
+  if (saved) {
+    document.getElementById('input-apikey').value = saved;
+    document.getElementById('apikey-status').textContent = 'API key set';
+  }
+}
+
+function saveAPIKey() {
+  const key = document.getElementById('input-apikey').value.trim();
+  if (key) {
+    localStorage.setItem('greynoise_api_key', key);
+    document.getElementById('apikey-status').textContent = 'API key saved';
+  } else {
+    localStorage.removeItem('greynoise_api_key');
+    document.getElementById('apikey-status').textContent = 'API key cleared';
+  }
+}
+
 // ── Load transforms list ────────────────────────────────────────────────────
 async function loadTransforms() {
   try {
@@ -114,9 +138,6 @@ async function loadTransforms() {
 }
 
 // ── Run transform ───────────────────────────────────────────────────────────
-let nodeCounter = 0;
-function uid() { return 'n' + (++nodeCounter); }
-
 async function runTransform() {
   const value     = document.getElementById('input-value').value.trim();
   const transform = document.getElementById('input-transform').value;
@@ -128,10 +149,14 @@ async function runTransform() {
   document.getElementById('btn-run').disabled = true;
 
   try {
+    const body = { value, entity_type: 'maltego.IPv4Address' };
+    const apiKey = getAPIKey();
+    if (apiKey) body.api_key = apiKey;
+
     const res = await fetch('/api/run/' + transform, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ value, entity_type: 'maltego.IPv4Address' }),
+      body:    JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -218,6 +243,27 @@ function clearGraph() {
   setStatus('Graph cleared', '');
 }
 
+// ── Export ───────────────────────────────────────────────────────────────────
+function exportPNG() {
+  if (!cy.elements().length) { setStatus('Graph is empty', 'error'); return; }
+  const png = cy.png({ full: true, scale: 2, bg: '#0d1117' });
+  const a = document.createElement('a');
+  a.href = png;
+  a.download = 'maltego-graph.png';
+  a.click();
+}
+
+function exportJSON() {
+  if (!cy.elements().length) { setStatus('Graph is empty', 'error'); return; }
+  const json = JSON.stringify(cy.json(), null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'maltego-graph.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function setStatus(msg, cls) {
   const el = document.getElementById('status');
   el.textContent  = msg;
@@ -226,21 +272,29 @@ function setStatus(msg, cls) {
 
 // ── Save / Load graphs ───────────────────────────────────────────────────────
 
-async function loadSavedGraphs() {
+let graphsOffset = 0;
+const GRAPHS_LIMIT = 10;
+
+async function loadSavedGraphs(reset = true) {
+  if (reset) graphsOffset = 0;
   try {
-    const res = await fetch('/api/graphs');
+    const res = await fetch(`/api/graphs?limit=${GRAPHS_LIMIT}&offset=${graphsOffset}`);
     const data = await res.json();
-    renderSavedGraphs(data.graphs || []);
+    renderSavedGraphs(data.graphs || [], data.total || 0, reset);
+    graphsOffset += (data.graphs || []).length;
   } catch (_) {}
 }
 
-function renderSavedGraphs(graphs) {
+function renderSavedGraphs(graphs, total, reset) {
   const list = document.getElementById('saved-graphs-list');
-  list.innerHTML = '';
-  if (!graphs.length) {
+  if (reset) list.innerHTML = '';
+
+  if (reset && !graphs.length) {
     list.innerHTML = '<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px">No saved graphs</div>';
+    document.getElementById('btn-load-more').style.display = 'none';
     return;
   }
+
   graphs.forEach(g => {
     const item = document.createElement('div');
     item.className = 'graph-item';
@@ -248,14 +302,47 @@ function renderSavedGraphs(graphs) {
     item.innerHTML = `
       <span class="graph-item-name" title="${g.name}">${g.name}</span>
       <span class="graph-item-date">${date}</span>
+      <button class="graph-item-rename" title="Rename" data-id="${g.id}">✎</button>
       <button class="graph-item-del" title="Delete" data-id="${g.id}">×</button>
     `;
     item.querySelector('.graph-item-name').addEventListener('click', () => openGraph(g.id));
+    item.querySelector('.graph-item-rename').addEventListener('click', e => {
+      e.stopPropagation();
+      startRename(item, g.id, g.name);
+    });
     item.querySelector('.graph-item-del').addEventListener('click', e => {
       e.stopPropagation();
       deleteGraph(g.id);
     });
     list.appendChild(item);
+  });
+
+  const loadMore = document.getElementById('btn-load-more');
+  loadMore.style.display = graphsOffset < total ? 'block' : 'none';
+}
+
+function startRename(item, id, currentName) {
+  const nameEl = item.querySelector('.graph-item-name');
+  const input = document.createElement('input');
+  input.value = currentName;
+  input.className = 'graph-item-name';
+  input.style.cursor = 'text';
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = async () => {
+    const newName = input.value.trim();
+    if (newName && newName !== currentName) {
+      await renameGraph(id, newName);
+    } else {
+      loadSavedGraphs();
+    }
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.removeEventListener('blur', commit); loadSavedGraphs(); }
   });
 }
 
@@ -274,7 +361,14 @@ async function saveGraph() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, data }),
     });
-    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    if (!res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      const msg = ct.includes('json')
+        ? (await res.json()).error
+        : await res.text();
+      if (res.status === 404) throw new Error('Database not available — start Docker first');
+      throw new Error(msg || res.statusText);
+    }
     nameInput.value = '';
     setStatus('Graph saved: ' + name, 'ok');
     loadSavedGraphs();
@@ -286,7 +380,10 @@ async function saveGraph() {
 async function openGraph(id) {
   try {
     const res = await fetch('/api/graphs/' + id);
-    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
+    if (!res.ok) {
+      if (res.status === 404) throw new Error('Graph not found');
+      throw new Error(res.statusText);
+    }
     const g = await res.json();
     cy.elements().remove();
     cy.json(JSON.parse(g.data));
@@ -294,6 +391,19 @@ async function openGraph(id) {
     setStatus('Loaded: ' + g.name, 'ok');
   } catch (err) {
     setStatus('Load failed: ' + err.message, 'error');
+  }
+}
+
+async function renameGraph(id, name) {
+  try {
+    await fetch(`/api/graphs/${id}/rename`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    loadSavedGraphs();
+  } catch (err) {
+    setStatus('Rename failed: ' + err.message, 'error');
   }
 }
 
@@ -310,10 +420,15 @@ async function deleteGraph(id) {
 document.getElementById('btn-run').addEventListener('click', runTransform);
 document.getElementById('btn-clear').addEventListener('click', clearGraph);
 document.getElementById('btn-save').addEventListener('click', saveGraph);
+document.getElementById('btn-export-png').addEventListener('click', exportPNG);
+document.getElementById('btn-export-json').addEventListener('click', exportJSON);
+document.getElementById('btn-apikey-save').addEventListener('click', saveAPIKey);
+document.getElementById('btn-load-more').addEventListener('click', () => loadSavedGraphs(false));
 document.getElementById('input-value').addEventListener('keydown', e => {
   if (e.key === 'Enter') runTransform();
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
+initAPIKey();
 loadTransforms();
 loadSavedGraphs();

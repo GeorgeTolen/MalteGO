@@ -20,28 +20,41 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	if cfg.GreyNoiseAPIKey == "" {
-		log.Fatal("GREYNOISE_API_KEY is required for greynoise-api service")
-	}
+	mockMode := os.Getenv("MOCK_MODE") == "true"
 
 	port := os.Getenv("GREYNOISE_API_PORT")
 	if port == "" {
 		port = "8090"
 	}
 
-	client := greynoise.NewClient(cfg.GreyNoiseAPIKey, cfg.RequestTimeout)
+	if !mockMode && cfg.GreyNoiseAPIKey == "" {
+		log.Fatal("GREYNOISE_API_KEY is required (or set MOCK_MODE=true for demo)")
+	}
+
+	var client greynoise.Client
+	if !mockMode {
+		client = greynoise.NewClient(cfg.GreyNoiseAPIKey, cfg.RequestTimeout)
+	}
 
 	gin.SetMode(cfg.GinMode)
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "greynoise-api"})
+		mode := "live"
+		if mockMode {
+			mode = "mock"
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "greynoise-api", "mode": mode})
 	})
 
 	r.GET("/community/:ip", func(c *gin.Context) {
-		ctx := c.Request.Context()
-		resp, err := client.CommunityIP(ctx, c.Param("ip"))
+		ip := c.Param("ip")
+		if mockMode {
+			c.JSON(http.StatusOK, greynoise.MockCommunity(ip))
+			return
+		}
+		resp, err := client.CommunityIP(c.Request.Context(), ip)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -50,8 +63,12 @@ func main() {
 	})
 
 	r.GET("/context/:ip", func(c *gin.Context) {
-		ctx := c.Request.Context()
-		resp, err := client.ContextIP(ctx, c.Param("ip"))
+		ip := c.Param("ip")
+		if mockMode {
+			c.JSON(http.StatusOK, greynoise.MockContext(ip))
+			return
+		}
+		resp, err := client.ContextIP(c.Request.Context(), ip)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -60,8 +77,12 @@ func main() {
 	})
 
 	r.GET("/riot/:ip", func(c *gin.Context) {
-		ctx := c.Request.Context()
-		resp, err := client.RIOT(ctx, c.Param("ip"))
+		ip := c.Param("ip")
+		if mockMode {
+			c.JSON(http.StatusOK, greynoise.MockRIOT(ip))
+			return
+		}
+		resp, err := client.RIOT(c.Request.Context(), ip)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -70,8 +91,12 @@ func main() {
 	})
 
 	r.GET("/similar/:ip", func(c *gin.Context) {
-		ctx := c.Request.Context()
-		resp, err := client.SimilarIPs(ctx, c.Param("ip"), 0, 0)
+		ip := c.Param("ip")
+		if mockMode {
+			c.JSON(http.StatusOK, greynoise.MockSimilar(ip))
+			return
+		}
+		resp, err := client.SimilarIPs(c.Request.Context(), ip, 0, 0)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -85,8 +110,11 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter required"})
 			return
 		}
-		ctx := c.Request.Context()
-		resp, err := client.GNQL(ctx, query, 50)
+		if mockMode {
+			c.JSON(http.StatusOK, greynoise.MockGNQL(query))
+			return
+		}
+		resp, err := client.GNQL(c.Request.Context(), query, 50)
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
@@ -94,7 +122,12 @@ func main() {
 		c.JSON(http.StatusOK, resp)
 	})
 
-	log.Printf("GreyNoise API Service starting on :%s", port)
+	if mockMode {
+		log.Printf("GreyNoise API Service starting on :%s [MOCK MODE — demo data only]", port)
+	} else {
+		log.Printf("GreyNoise API Service starting on :%s", port)
+	}
+
 	srv := &http.Server{
 		Addr:         ":" + port,
 		Handler:      r,

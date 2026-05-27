@@ -27,6 +27,7 @@ services:
     environment:
       - GIN_MODE=release
       - GREYNOISE_API_PORT=8090
+      - MOCK_MODE=${MOCK_MODE:-false}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]

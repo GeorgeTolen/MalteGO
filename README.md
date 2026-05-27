@@ -65,15 +65,19 @@ cd MalteGO
 
 cp .env.example .env
 # Add your GREYNOISE_API_KEY to .env
+# No key yet? Set MOCK_MODE=true for a full demo with realistic fake data
 # Free key: https://viz.greynoise.io/signup
 
-# Run all 3 services
-scripts\run-all.bat        # Windows
-# or
-docker-compose up --build  # Docker
+# Windows
+scripts\run-all.bat
+
+# Docker (Linux / Windows)
+docker-compose up --build -d
 ```
 
 Open **http://localhost:3000** — type an IP, pick a transform, see the graph.
+
+> **Linux deployment guide:** [DEPLOY.md](DEPLOY.md)
 
 ---
 

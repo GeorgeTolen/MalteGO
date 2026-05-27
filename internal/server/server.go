@@ -68,6 +68,7 @@ func (s *Server) setupRoutes() {
 		s.router.POST("/api/graphs", s.handleSaveGraph)
 		s.router.GET("/api/graphs/:id", s.handleGetGraph)
 		s.router.PUT("/api/graphs/:id", s.handleUpdateGraph)
+		s.router.PATCH("/api/graphs/:id/rename", s.handleRenameGraph)
 		s.router.DELETE("/api/graphs/:id", s.handleDeleteGraph)
 	}
 }
@@ -101,6 +102,7 @@ func (s *Server) handleAPIRun(c *gin.Context) {
 	var body struct {
 		Value      string `json:"value"`
 		EntityType string `json:"entity_type"`
+		APIKey     string `json:"api_key"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON body"})
@@ -123,7 +125,11 @@ func (s *Server) handleAPIRun(c *gin.Context) {
 		HardLimit:  12,
 	}
 
-	client := s.newClient(s.cfg.GreyNoiseAPIKey, s.cfg.RequestTimeout)
+	apiKey := body.APIKey
+	if apiKey == "" {
+		apiKey = s.cfg.GreyNoiseAPIKey
+	}
+	client := s.newClient(apiKey, s.cfg.RequestTimeout)
 
 	resp, err := s.registry.Run(c.Request.Context(), name, client, req)
 	if err != nil {
@@ -137,7 +143,15 @@ func (s *Server) handleAPIRun(c *gin.Context) {
 // ── Graph persistence handlers ───────────────────────────────────────────────
 
 func (s *Server) handleListGraphs(c *gin.Context) {
-	graphs, err := s.store.ListGraphs()
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	graphs, total, err := s.store.ListGraphs(limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -145,7 +159,7 @@ func (s *Server) handleListGraphs(c *gin.Context) {
 	if graphs == nil {
 		graphs = []storage.Graph{}
 	}
-	c.JSON(http.StatusOK, gin.H{"graphs": graphs})
+	c.JSON(http.StatusOK, gin.H{"graphs": graphs, "total": total, "limit": limit, "offset": offset})
 }
 
 func (s *Server) handleSaveGraph(c *gin.Context) {
@@ -204,6 +218,27 @@ func (s *Server) handleUpdateGraph(c *gin.Context) {
 	}
 	if g == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "graph not found"})
+		return
+	}
+	c.JSON(http.StatusOK, g)
+}
+
+func (s *Server) handleRenameGraph(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	var body struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	g, err := s.store.RenameGraph(id, body.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, g)
